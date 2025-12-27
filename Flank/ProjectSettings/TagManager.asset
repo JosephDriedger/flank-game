@@ -2,8 +2,10 @@
 %TAG !u! tag:unity3d.com,2011:
 --- !u!78 &1
 TagManager:
-  serializedVersion: 2
-  tags: []
+  serializedVersion: 3
+  tags:
+  - Hex
+  - Piece
   layers:
   - Default
   - TransparentFX
@@ -11,8 +13,8 @@ TagManager:
   - 
   - Water
   - UI
-  - 
-  - 
+  - Board
+  - Pieces
   - 
   - 
   - 
@@ -41,3 +43,20 @@ TagManager:
   - name: Default
     uniqueID: 0
     locked: 0
+  - name: Board
+    uniqueID: 2454357557
+    locked: 0
+  - name: BoardOverlay
+    uniqueID: 4216398125
+    locked: 0
+  - name: Pieces
+    uniqueID: 788513589
+    locked: 0
+  - name: PiecesOverlay
+    uniqueID: 375917889
+    locked: 0
+  - name: UI
+    uniqueID: 2917489251
+    locked: 0
+  m_RenderingLayers:
+  - Default
