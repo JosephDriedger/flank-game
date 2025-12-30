@@ -3358,7 +3358,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1513509089}
+      - m_Target: {fileID: 0}
         m_TargetAssemblyTypeName: SceneLoader, Assembly-CSharp
         m_MethodName: QuitGame
         m_Mode: 1
@@ -7546,6 +7546,7 @@ GameObject:
   - component: {fileID: 685123888}
   - component: {fileID: 685123890}
   - component: {fileID: 685123889}
+  - component: {fileID: 685123891}
   m_Layer: 5
   m_Name: PassNPlayPanel
   m_TagString: Untagged
@@ -7616,6 +7617,22 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 685123887}
   m_CullTransparentMesh: 1
+--- !u!114 &685123891
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 685123887}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 938b011ef8fe3a443a727760961908a5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PassNPlayStart
+  _sceneLoader: {fileID: 0}
+  _attackerName: {fileID: 1087421223}
+  _defenderName: {fileID: 1875882965}
+  _timeLimitDropdown: {fileID: 788223948}
 --- !u!1 &699365703
 GameObject:
   m_ObjectHideFlags: 0
@@ -9793,8 +9810,20 @@ MonoBehaviour:
   m_Group: {fileID: 0}
   onValueChanged:
     m_PersistentCalls:
-      m_Calls: []
-  m_IsOn: 1
+      m_Calls:
+      - m_Target: {fileID: 1560561540}
+        m_TargetAssemblyTypeName: SinglePlayerStart, Assembly-CSharp
+        m_MethodName: SetPlayAsDefender
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+  m_IsOn: 0
 --- !u!1 &927255277
 GameObject:
   m_ObjectHideFlags: 0
@@ -12121,7 +12150,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1130914180
 RectTransform:
   m_ObjectHideFlags: 0
@@ -13148,13 +13177,13 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1513509087}
-        m_TargetAssemblyTypeName: PanelManager, Assembly-CSharp
-        m_MethodName: ShowPanel
-        m_Mode: 2
+      - m_Target: {fileID: 685123891}
+        m_TargetAssemblyTypeName: PassNPlayStart, Assembly-CSharp
+        m_MethodName: OnStartPressed
+        m_Mode: 1
         m_Arguments:
-          m_ObjectArgument: {fileID: 1807972268}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.GameObject, UnityEngine
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
           m_IntArgument: 0
           m_FloatArgument: 0
           m_StringArgument: 
@@ -16551,7 +16580,6 @@ GameObject:
   m_Component:
   - component: {fileID: 1513509088}
   - component: {fileID: 1513509087}
-  - component: {fileID: 1513509089}
   m_Layer: 0
   m_Name: PanelManager
   m_TagString: Untagged
@@ -16584,7 +16612,8 @@ MonoBehaviour:
   - {fileID: 1130914179}
   - {fileID: 1595341613}
   - {fileID: 125933536}
-  _startPanel: {fileID: 1560561536}
+  _startPanel: {fileID: 1623339285}
+  _persistLastPanel: 1
 --- !u!4 &1513509088
 Transform:
   m_ObjectHideFlags: 0
@@ -16600,18 +16629,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1513509089
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1513509086}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5c806660f30c52349b9732b3938dfe3e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SceneLoader
 --- !u!1 &1538483967
 GameObject:
   m_ObjectHideFlags: 0
@@ -16914,6 +16931,7 @@ GameObject:
   - component: {fileID: 1560561537}
   - component: {fileID: 1560561539}
   - component: {fileID: 1560561538}
+  - component: {fileID: 1560561540}
   m_Layer: 5
   m_Name: SinglePlayerPanel
   m_TagString: Untagged
@@ -16984,6 +17002,22 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1560561536}
   m_CullTransparentMesh: 1
+--- !u!114 &1560561540
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1560561536}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bc65343e9bfff9a4bb5bf9402aac95fb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SinglePlayerStart
+  _sceneLoader: {fileID: 0}
+  _difficultyDropdown: {fileID: 889771907}
+  _timeLimitDropdown: {fileID: 1071248755}
+  _playAsAttacker: 1
 --- !u!1 &1562175374
 GameObject:
   m_ObjectHideFlags: 0
@@ -17201,8 +17235,20 @@ MonoBehaviour:
   m_Group: {fileID: 0}
   onValueChanged:
     m_PersistentCalls:
-      m_Calls: []
-  m_IsOn: 1
+      m_Calls:
+      - m_Target: {fileID: 1560561540}
+        m_TargetAssemblyTypeName: SinglePlayerStart, Assembly-CSharp
+        m_MethodName: SetPlayAsAttacker
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+  m_IsOn: 0
 --- !u!1 &1569989514
 GameObject:
   m_ObjectHideFlags: 0
@@ -17641,7 +17687,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &1623339286
 RectTransform:
   m_ObjectHideFlags: 0
@@ -19301,13 +19347,13 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1513509087}
-        m_TargetAssemblyTypeName: PanelManager, Assembly-CSharp
-        m_MethodName: ShowPanel
-        m_Mode: 2
+      - m_Target: {fileID: 1560561540}
+        m_TargetAssemblyTypeName: SinglePlayerStart, Assembly-CSharp
+        m_MethodName: OnStartPressed
+        m_Mode: 1
         m_Arguments:
-          m_ObjectArgument: {fileID: 1807972268}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.GameObject, UnityEngine
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
           m_IntArgument: 0
           m_FloatArgument: 0
           m_StringArgument: 

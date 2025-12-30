@@ -15,11 +15,9 @@ public sealed class GameController : MonoBehaviour
     [SerializeField] private MonoBehaviour _attackerControllerBehaviour;
     [SerializeField] private MonoBehaviour _defenderControllerBehaviour;
 
-    // Strong references
     private IPlayerController _attackerController;
     private IPlayerController _defenderController;
 
-    // Current turn owner (both forms)
     public MonoBehaviour CurrentControllerBehaviour { get; private set; }
     public IPlayerController CurrentController { get; private set; }
 
@@ -29,27 +27,48 @@ public sealed class GameController : MonoBehaviour
     private TurnSystem _turnSystem;
     private RulesEngine _rules;
 
-    private void Awake()
+    // ============================================================
+    // UI / OBSERVERS
+    // ============================================================
+
+    public event Action<GameState> StateChanged;
+    public event Action<string> LogAdded;
+
+    public GameState State
     {
-        _attackerController = _attackerControllerBehaviour as IPlayerController;
-        _defenderController = _defenderControllerBehaviour as IPlayerController;
-
-        if (_attackerController == null)
+        get
         {
-            Debug.LogError("Attacker controller does not implement IPlayerController.");
+            return _state;
+        }
+    }
+
+    private void RaiseStateChanged()
+    {
+        if (_state == null)
+        {
+            return;
         }
 
-        if (_defenderController == null)
+        StateChanged?.Invoke(_state);
+    }
+
+    private void AddLog(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
         {
-            Debug.LogError("Defender controller does not implement IPlayerController.");
+            return;
         }
 
-        _turnSystem = new TurnSystem(new TurnRules(), new MoveBudget());
-        _rules = new RulesEngine();
+        LogAdded?.Invoke(message);
     }
 
     private void Start()
     {
+        ConfigurePlayerControllers(_attackerControllerBehaviour, _defenderControllerBehaviour);
+
+        _turnSystem = new TurnSystem(new TurnRules(), new MoveBudget());
+        _rules = new RulesEngine();
+
         NewGame();
     }
 
@@ -73,7 +92,6 @@ public sealed class GameController : MonoBehaviour
                 out flags
             );
 
-            // Spawn attackers
             for (int i = 0; i < attackers.Count; i++)
             {
                 PieceModel p = new PieceModel(
@@ -86,7 +104,6 @@ public sealed class GameController : MonoBehaviour
                 _board.GetHex(p.position).occupantPieceId = p.id;
             }
 
-            // Spawn defenders
             for (int i = 0; i < defenders.Count; i++)
             {
                 PieceModel p = new PieceModel(
@@ -99,7 +116,6 @@ public sealed class GameController : MonoBehaviour
                 _board.GetHex(p.position).occupantPieceId = p.id;
             }
 
-            // Spawn flags
             for (int i = 0; i < flags.Count; i++)
             {
                 FlagModel f = new FlagModel(
@@ -114,6 +130,10 @@ public sealed class GameController : MonoBehaviour
             _boardView.Build(_board);
             _boardView.SyncPieces(_state);
 
+            AddLog("New game started.");
+
+            RaiseStateChanged();
+
             BeginTurn(Role.Attacker);
         }
         catch (Exception ex)
@@ -125,7 +145,6 @@ public sealed class GameController : MonoBehaviour
 
     private void BeginTurn(Role role)
     {
-        // End previous controller turn
         CurrentController?.EndTurn();
 
         _turnSystem.BeginTurn(_state, role);
@@ -143,9 +162,17 @@ public sealed class GameController : MonoBehaviour
 
         bool isHumanTurn = CurrentControllerBehaviour is HumanPlayerController;
 
-        _turnPerspective.Apply(role, isHumanTurn);
+        if (_turnPerspective != null)
+        {
+            _turnPerspective.Apply(role, isHumanTurn);
+        }
 
         CurrentController?.BeginTurn(_state, _board);
+
+        string turnName = role == Role.Attacker ? "Attacker" : "Defender";
+        AddLog($"{turnName} turn started.");
+
+        RaiseStateChanged();
     }
 
     public void TryApplyAction(PlayerAction action)
@@ -155,12 +182,16 @@ public sealed class GameController : MonoBehaviour
             return;
         }
 
+        if (_state == null || _board == null)
+        {
+            return;
+        }
+
         if (!_turnSystem.CanAct(_state))
         {
             return;
         }
 
-        // HARD RULE: piece must be eligible this turn (attackers: second move must be different piece).
         if (!_turnSystem.CanUsePiece(_state, action.pieceId))
         {
             return;
@@ -177,13 +208,22 @@ public sealed class GameController : MonoBehaviour
 
         _turnSystem.SpendAction(_state, action.pieceId, fromBeforeMove);
 
-        _boardView.ClearHighlights();
-        _boardView.SyncPieces(_state);
+        if (_boardView != null)
+        {
+            _boardView.ClearHighlights();
+            _boardView.SyncPieces(_state);
+        }
 
         _state.result = _rules.GetGameResult(_state);
 
+        string roleName = _state.currentTurn == Role.Attacker ? "Attacker" : "Defender";
+        AddLog($"{roleName} moved {action.pieceId}.");
+
+        RaiseStateChanged();
+
         if (_state.result != GameResult.None)
         {
+            AddLog($"Game Over: {_state.result}");
             Debug.Log($"Game Over: {_state.result}");
             CurrentController?.EndTurn();
             return;
@@ -197,21 +237,28 @@ public sealed class GameController : MonoBehaviour
         BeginTurn(_turnSystem.NextRole(_state.currentTurn));
     }
 
-
-
     public bool CanCurrentTurnContinue()
     {
+        if (_state == null)
+        {
+            return false;
+        }
+
         return _turnSystem.CanAct(_state);
     }
 
     public bool CanUsePieceThisTurn(string pieceId)
     {
+        if (_state == null)
+        {
+            return false;
+        }
+
         return _turnSystem.CanUsePiece(_state, pieceId);
     }
 
     public void EndTurnEarly()
     {
-        // Only defenders can choose to stop after 1 move.
         if (_state == null)
         {
             return;
@@ -222,12 +269,32 @@ public sealed class GameController : MonoBehaviour
             return;
         }
 
-        // Only allow ending early after at least one move has been used.
         if (_state.turnProgress != null && _state.turnProgress.movesUsed < 1)
         {
             return;
         }
 
+        AddLog("Defender ended turn early.");
+
         BeginTurn(_turnSystem.NextRole(_state.currentTurn));
+    }
+
+    public void ConfigurePlayerControllers(MonoBehaviour attacker, MonoBehaviour defender)
+    {
+        _attackerControllerBehaviour = attacker;
+        _defenderControllerBehaviour = defender;
+
+        _attackerController = _attackerControllerBehaviour as IPlayerController;
+        _defenderController = _defenderControllerBehaviour as IPlayerController;
+
+        if (_attackerController == null)
+        {
+            Debug.LogError("Attacker controller does not implement IPlayerController.");
+        }
+
+        if (_defenderController == null)
+        {
+            Debug.LogError("Defender controller does not implement IPlayerController.");
+        }
     }
 }

@@ -16,6 +16,20 @@ public sealed class AIPlayerController : MonoBehaviour, IPlayerController
 
     private void Awake()
     {
+        if (_brainBehaviour == null)
+        {
+            MonoBehaviour[] behaviours = GetComponents<MonoBehaviour>();
+
+            for (int i = 0; i < behaviours.Length; i++)
+            {
+                if (behaviours[i] is IAIBrain)
+                {
+                    _brainBehaviour = behaviours[i];
+                    break;
+                }
+            }
+        }
+
         RebindBrain();
     }
 
@@ -102,5 +116,25 @@ public sealed class AIPlayerController : MonoBehaviour, IPlayerController
         }
 
         _game.TryApplyAction(chosen);
+    }
+
+    public void ApplyDifficulty(Difficulty difficulty)
+    {
+        MonoBehaviour easy = GetComponent<RandomBrain>();
+        MonoBehaviour medium = GetComponent<HeuristicBrain>();
+        MonoBehaviour hard = GetComponent<MinimaxBrain>();
+
+        MonoBehaviour chosen = easy;
+
+        if (difficulty == Difficulty.Medium)
+        {
+            chosen = medium != null ? medium : easy;
+        }
+        else if (difficulty == Difficulty.Hard)
+        {
+            chosen = hard != null ? hard : (medium != null ? medium : easy);
+        }
+
+        SetBrainBehaviour(chosen);
     }
 }
