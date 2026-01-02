@@ -69,6 +69,11 @@ public sealed class GameController : MonoBehaviour
         _turnSystem = new TurnSystem(new TurnRules(), new MoveBudget());
         _rules = new RulesEngine();
 
+        if (TryLoadViewBoardSnapshot())
+        {
+            return;
+        }
+
         NewGame();
     }
 
@@ -296,5 +301,177 @@ public sealed class GameController : MonoBehaviour
         {
             Debug.LogError("Defender controller does not implement IPlayerController.");
         }
+    }
+
+    // ============================================================
+    // VIEW BOARD (PostGame -> GameScene read-only)
+    // ============================================================
+
+    private bool TryLoadViewBoardSnapshot()
+    {
+        int mode = LoadInt(PostGameKeys.LaunchMode, (int)GameLaunchMode.Normal);
+        if (mode != (int)GameLaunchMode.ViewBoard)
+        {
+            return false;
+        }
+
+        string json = LoadString(PostGameKeys.LastBoardSnapshotJson, string.Empty);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return false;
+        }
+
+        GameStateSnapshot snap = JsonUtility.FromJson<GameStateSnapshot>(json);
+        if (snap == null)
+        {
+            return false;
+        }
+
+        LoadFromSnapshot(snap);
+        return true;
+    }
+
+    private void LoadFromSnapshot(GameStateSnapshot snap)
+    {
+        _board = new BoardModel();
+        _state = new GameState();
+
+        _state.result = ParseResult(snap.result);
+        _state.currentTurn = (Role)snap.currentTurn;
+
+        List<(string id, HexCoord coord)> attackers;
+        List<(string id, HexCoord coord)> defenders;
+        List<(string id, HexCoord coord)> flags;
+
+        BoardMapBuilder.Build(_boardMapConfig, _board, out attackers, out defenders, out flags);
+
+        // Clear only known spawn hexes (BoardModel does not expose a hex dictionary).
+        for (int i = 0; i < attackers.Count; i++)
+        {
+            _board.GetHex(attackers[i].coord).occupantPieceId = null;
+        }
+
+        for (int i = 0; i < defenders.Count; i++)
+        {
+            _board.GetHex(defenders[i].coord).occupantPieceId = null;
+        }
+
+        for (int i = 0; i < flags.Count; i++)
+        {
+            _board.GetHex(flags[i].coord).flagId = null;
+        }
+
+        // Restore pieces
+        for (int i = 0; i < snap.pieces.Count; i++)
+        {
+            GameStateSnapshot.PieceSnapshot ps = snap.pieces[i];
+
+            PieceModel p = new PieceModel(
+                ps.id,
+                (Role)ps.role,
+                new HexCoord(ps.q, ps.r)
+            );
+
+            p.isCaptured = ps.isCaptured;
+            p.carryingFlagId = string.IsNullOrWhiteSpace(ps.carryingFlagId) ? null : ps.carryingFlagId;
+
+            _state.AddPiece(p);
+
+            if (!p.isCaptured)
+            {
+                _board.GetHex(p.position).occupantPieceId = p.id;
+            }
+        }
+
+        // Restore flags
+        for (int i = 0; i < snap.flags.Count; i++)
+        {
+            GameStateSnapshot.FlagSnapshot fs = snap.flags[i];
+
+            HexCoord home = fs.hasLocation ? new HexCoord(fs.q, fs.r) : new HexCoord(0, 0);
+            FlagModel f = new FlagModel(fs.id, home);
+
+            f.isCaptured = fs.isCaptured;
+            f.carrierPieceId = string.IsNullOrWhiteSpace(fs.carrierPieceId) ? null : fs.carrierPieceId;
+
+            if (fs.hasLocation)
+            {
+                f.location = new HexCoord(fs.q, fs.r);
+            }
+            else
+            {
+                f.location = null;
+            }
+
+            _state.AddFlag(f);
+
+            if (!f.isCaptured && f.location.HasValue && string.IsNullOrWhiteSpace(f.carrierPieceId))
+            {
+                _board.GetHex(f.location.Value).flagId = f.id;
+            }
+        }
+
+        if (_boardView != null)
+        {
+            _boardView.Build(_board);
+            _boardView.SyncPieces(_state);
+            _boardView.ClearHighlights();
+        }
+
+        // Disable interaction: we do not start a turn, and we clear controllers.
+        CurrentController?.EndTurn();
+        CurrentControllerBehaviour = null;
+        CurrentController = null;
+
+        AddLog("Viewing final board (read-only).");
+        RaiseStateChanged();
+    }
+
+    private GameResult ParseResult(string raw)
+    {
+        if (raw == GameResult.AttackersWin.ToString())
+        {
+            return GameResult.AttackersWin;
+        }
+
+        if (raw == GameResult.DefendersWin.ToString())
+        {
+            return GameResult.DefendersWin;
+        }
+
+        return GameResult.None;
+    }
+
+    private string LoadString(string key, string fallback)
+    {
+        if (SaveSystem.Instance != null)
+        {
+            return SaveSystem.Instance.LoadString(key, fallback);
+        }
+
+        return PlayerPrefs.GetString(key, fallback);
+    }
+
+    private int LoadInt(string key, int fallback)
+    {
+        if (SaveSystem.Instance != null)
+        {
+            string raw = SaveSystem.Instance.LoadString(key, fallback.ToString());
+            return int.TryParse(raw, out int v) ? v : fallback;
+        }
+
+        return PlayerPrefs.GetInt(key, fallback);
+    }
+
+    private void SaveString(string key, string value)
+    {
+        if (SaveSystem.Instance != null)
+        {
+            SaveSystem.Instance.SaveString(key, value);
+            return;
+        }
+
+        PlayerPrefs.SetString(key, value);
+        PlayerPrefs.Save();
     }
 }

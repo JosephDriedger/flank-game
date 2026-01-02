@@ -81,4 +81,39 @@ public sealed class GameSettingsManager : MonoBehaviour
         PlayerPrefs.SetString(SettingsPrefsKey, json);
         PlayerPrefs.Save();
     }
+
+    public string ExportJson()
+    {
+        if (Current == null)
+        {
+            return string.Empty;
+        }
+
+        return UnityEngine.JsonUtility.ToJson(Current);
+    }
+
+    public void ImportJson(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return;
+        }
+
+        try
+        {
+            GameSettings loaded = UnityEngine.JsonUtility.FromJson<GameSettings>(json);
+            if (loaded == null)
+            {
+                return;
+            }
+
+            Current = loaded;
+            Save();
+        }
+        catch
+        {
+            // Keep current if invalid.
+        }
+    }
+
 }

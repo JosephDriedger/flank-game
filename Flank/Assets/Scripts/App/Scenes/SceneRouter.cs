@@ -54,4 +54,15 @@ public sealed class SceneRouter : MonoBehaviour
 
         UnityEngine.SceneManagement.SceneManager.LoadScene(navigationSceneName);
     }
+
+    public void GoToPostGame(string postGameSceneName = "PostGame")
+    {
+        if (sceneLoader != null)
+        {
+            sceneLoader.LoadSingle(postGameSceneName);
+            return;
+        }
+
+        UnityEngine.SceneManagement.SceneManager.LoadScene(postGameSceneName);
+    }
 }
