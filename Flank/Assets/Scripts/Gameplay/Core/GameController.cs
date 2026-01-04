@@ -12,8 +12,8 @@ public sealed class GameController : MonoBehaviour
     [SerializeField] private TurnPerspectiveController _turnPerspective;
 
     [Header("Players")]
-    [SerializeField] private MonoBehaviour _attackerControllerBehaviour;
-    [SerializeField] private MonoBehaviour _defenderControllerBehaviour;
+    private MonoBehaviour _attackerControllerBehaviour;
+    private MonoBehaviour _defenderControllerBehaviour;
 
     private IPlayerController _attackerController;
     private IPlayerController _defenderController;

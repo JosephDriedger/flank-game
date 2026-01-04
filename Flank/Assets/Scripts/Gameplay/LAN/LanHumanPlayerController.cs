@@ -1,81 +1,90 @@
 using System.Collections.Generic;
-using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public sealed class LanHumanPlayerController : MonoBehaviour
 {
-    [Header("Scene References")]
-    [SerializeField] private Camera cameraRef;
-    [SerializeField] private LayerMask boardMask;
-    [SerializeField] private BoardView boardView;
+    [Header("References")]
+    [SerializeField] private Camera _camera;
+    [SerializeField] private LayerMask _boardMask;
+    [SerializeField] private BoardView _boardView;
 
-    private LanGameController lanGame;
-    private GameState state;
-    private BoardModel board;
+    private LanGameController _lan;
 
-    private readonly MovementRules movementRules = new MovementRules();
-    private string selectedPieceId;
+    private readonly MovementRules _movement = new MovementRules();
 
-    private bool isBound;
-    private bool isSubscribed;
+    private string _selectedPieceId;
+
+    private void Awake()
+    {
+        if (_camera == null)
+        {
+            _camera = Camera.main;
+        }
+
+        if (_boardView == null)
+        {
+            _boardView = FindAnyObjectByType<BoardView>(FindObjectsInactive.Include);
+        }
+
+        _lan = FindAnyObjectByType<LanGameController>(FindObjectsInactive.Include);
+    }
 
     private void OnEnable()
     {
-        selectedPieceId = null;
-        TrySubscribe();
-        TryBind();
-    }
+        _selectedPieceId = null;
 
-    private void OnDisable()
-    {
-        Unbind();
-        Unsubscribe();
+        if (_boardView != null)
+        {
+            _boardView.ClearHighlights();
+        }
     }
 
     private void Update()
     {
-        if (!isBound)
+        if (_lan == null)
         {
-            TryBind();
-            return;
+            _lan = FindAnyObjectByType<LanGameController>(FindObjectsInactive.Include);
         }
 
-        if (state == null || board == null || lanGame == null)
-        {
-            return;
-        }
-
-        if (state.result != GameResult.None)
+        if (_lan == null || _lan.State == null)
         {
             return;
         }
 
-        if (!lanGame.IsLocalPlayersTurn())
+        // Only allow input when it is YOUR turn.
+        if (!_lan.IsLocalPlayersTurn())
         {
             return;
         }
 
-        // Right-click -> defender may end turn early (after 1 move).
-        if (Input.GetMouseButtonDown(1))
+        // --------------------------------------------------------
+        // RIGHT CLICK: defenders may end turn early
+        // --------------------------------------------------------
+        if (Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame)
         {
-            if (state.currentTurn == Role.Defender &&
-                state.turnProgress != null &&
-                state.turnProgress.movesUsed >= 1)
-            {
-                Deselect();
-                lanGame.RequestEndTurnEarly();
-            }
-
+            _lan.RequestEndTurnEarly();
+            Deselect();
             return;
         }
 
-        if (!Input.GetMouseButtonDown(0) || cameraRef == null)
+        // --------------------------------------------------------
+        // LEFT CLICK
+        // --------------------------------------------------------
+        if (Mouse.current == null || !Mouse.current.leftButton.wasPressedThisFrame)
         {
             return;
         }
 
-        Vector2 world = cameraRef.ScreenToWorldPoint(Input.mousePosition);
-        RaycastHit2D hit = Physics2D.Raycast(world, Vector2.zero, 0f, boardMask);
+        if (_camera == null)
+        {
+            return;
+        }
+
+        Vector2 mousePos = Mouse.current.position.ReadValue();
+        float worldZ = -_camera.transform.position.z;
+        Vector3 world = _camera.ScreenToWorldPoint(new Vector3(mousePos.x, mousePos.y, worldZ));
+        RaycastHit2D hit = Physics2D.Raycast(world, Vector2.zero, 0f, _boardMask);
 
         if (hit.collider == null)
         {
@@ -88,192 +97,115 @@ public sealed class LanHumanPlayerController : MonoBehaviour
             return;
         }
 
-        HexCoord clicked = hv.Coord;
+        HandleClick(hv.Coord);
+    }
 
-        // Clicked a piece?
-        if (board.TryGetHex(clicked, out HexModel hex) &&
-            !string.IsNullOrWhiteSpace(hex.occupantPieceId))
+    private void HandleClick(HexCoord clicked)
+    {
+        GameState state = _lan.State;
+        BoardModel board = _lan.Board;
+
+        if (state == null || board == null)
         {
-            PieceModel piece = state.GetPiece(hex.occupantPieceId);
-            if (piece == null || piece.isCaptured)
+            return;
+        }
+
+        // Clicking a piece: select / toggle deselect
+        if (board.TryGetHex(clicked, out HexModel hex) && !string.IsNullOrWhiteSpace(hex.occupantPieceId))
+        {
+            PieceModel p = state.GetPiece(hex.occupantPieceId);
+            if (p == null || p.isCaptured)
             {
                 return;
             }
 
-            if (selectedPieceId == piece.id)
+            if (!string.IsNullOrWhiteSpace(_selectedPieceId) && p.id == _selectedPieceId)
             {
                 Deselect();
                 return;
             }
 
-            if (piece.role != state.currentTurn)
+            if (p.role != state.currentTurn)
             {
                 return;
             }
 
-            if (!lanGame.CanUsePieceThisTurn(piece.id))
+            // Enforce the same per-turn piece gating as the server (prevents selecting a piece that cannot be moved).
+            if (!TurnProgressGate.CanUsePieceForNextMove(state, p.id))
             {
                 return;
             }
 
-            SelectPiece(piece);
+            SelectPiece(p, state, board);
             return;
         }
 
-        // Click empty hex -> request move.
-        if (string.IsNullOrWhiteSpace(selectedPieceId))
+        // Clicking a hex: attempt to move selected piece
+        if (string.IsNullOrWhiteSpace(_selectedPieceId))
         {
             return;
         }
 
-        if (!lanGame.CanUsePieceThisTurn(selectedPieceId))
+        PieceModel selected = state.GetPiece(_selectedPieceId);
+        if (selected == null || selected.isCaptured)
         {
             Deselect();
             return;
         }
 
-        lanGame.RequestMove(selectedPieceId, clicked);
+        if (!TurnProgressGate.CanUsePieceForNextMove(state, selected.id))
+        {
+            Deselect();
+            return;
+        }
+
+        List<HexCoord> legal = _movement.GetLegalDestinations(selected, state, board);
+        bool isLegal = false;
+        for (int i = 0; i < legal.Count; i++)
+        {
+            if (legal[i].Equals(clicked))
+            {
+                isLegal = true;
+                break;
+            }
+        }
+
+        if (!isLegal)
+        {
+            return;
+        }
+
+        // Re-check budget gate before sending RPC (state may have changed since selection).
+        if (!TurnProgressGate.CanUsePieceForNextMove(state, _selectedPieceId))
+        {
+            Deselect();
+            return;
+        }
+
+        _lan.RequestMove(_selectedPieceId, clicked);
         Deselect();
     }
 
-    // ------------------------------------------------------------
-    // Binding
-    // ------------------------------------------------------------
-
-    private void TrySubscribe()
+    private void SelectPiece(PieceModel p, GameState state, BoardModel board)
     {
-        if (isSubscribed || NetworkManager.Singleton == null)
+        _selectedPieceId = p.id;
+
+        if (_boardView == null)
         {
             return;
         }
 
-        if (!NetworkManager.Singleton.IsListening)
-        {
-            return;
-        }
-
-        NetworkManager.Singleton.SceneManager.OnLoadEventCompleted += OnSceneLoadComplete;
-        isSubscribed = true;
-    }
-
-    private void Unsubscribe()
-    {
-        if (!isSubscribed || NetworkManager.Singleton == null)
-        {
-            return;
-        }
-
-        NetworkManager.Singleton.SceneManager.OnLoadEventCompleted -= OnSceneLoadComplete;
-        isSubscribed = false;
-    }
-
-    private void OnSceneLoadComplete(string sceneName,
-        UnityEngine.SceneManagement.LoadSceneMode mode,
-        List<ulong> clientsCompleted,
-        List<ulong> clientsTimedOut)
-    {
-        TryBind();
-    }
-
-    private void TryBind()
-    {
-        if (isBound)
-        {
-            return;
-        }
-
-        lanGame = FindFirstObjectByType<LanGameController>();
-        if (lanGame == null)
-        {
-            return;
-        }
-
-        lanGame.StateChanged -= HandleStateChanged;
-        lanGame.StateChanged += HandleStateChanged;
-
-        if (lanGame.State != null)
-        {
-            HandleStateChanged(lanGame.State);
-        }
-
-        isBound = true;
-    }
-
-    private void Unbind()
-    {
-        if (lanGame != null)
-        {
-            lanGame.StateChanged -= HandleStateChanged;
-        }
-
-        lanGame = null;
-        state = null;
-        board = null;
-        selectedPieceId = null;
-        isBound = false;
-    }
-
-    // ------------------------------------------------------------
-    // State -> visuals
-    // ------------------------------------------------------------
-
-    private void HandleStateChanged(GameState newState)
-    {
-        state = newState;
-        board = lanGame.Board;
-
-        selectedPieceId = null;
-
-        if (boardView != null)
-        {
-            boardView.ClearHighlights();
-        }
-
-        if (lanGame.IsLocalPlayersTurn() && state.result == GameResult.None)
-        {
-            HighlightEligiblePieces();
-        }
-    }
-
-    private void SelectPiece(PieceModel piece)
-    {
-        selectedPieceId = piece.id;
-
-        List<HexCoord> legal = movementRules.GetLegalDestinations(piece, state, board);
-        boardView.ShowHighlights(legal);
+        List<HexCoord> legal = _movement.GetLegalDestinations(p, state, board);
+        _boardView.ShowHighlights(legal);
     }
 
     private void Deselect()
     {
-        selectedPieceId = null;
-        boardView.ClearHighlights();
-        HighlightEligiblePieces();
-    }
+        _selectedPieceId = null;
 
-    private void HighlightEligiblePieces()
-    {
-        List<HexCoord> coords = new List<HexCoord>();
-
-        foreach (PieceModel piece in state.pieces.Values)
+        if (_boardView != null)
         {
-            if (piece == null || piece.isCaptured)
-            {
-                continue;
-            }
-
-            if (piece.role != state.currentTurn)
-            {
-                continue;
-            }
-
-            if (!lanGame.CanUsePieceThisTurn(piece.id))
-            {
-                continue;
-            }
-
-            coords.Add(piece.position);
+            _boardView.ClearHighlights();
         }
-
-        boardView.ShowHighlights(coords);
     }
 }

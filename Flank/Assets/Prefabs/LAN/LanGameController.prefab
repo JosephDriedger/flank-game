@@ -45,7 +45,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 3390794302
+  GlobalObjectIdHash: 419782306
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -71,6 +71,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LanGameController
   ShowTopMostFoldoutHeaderGroup: 1
-  boardMapConfig: {fileID: 11400000, guid: 61a6a37c6982b1a4ba8789220f3edab9, type: 2}
-  boardView: {fileID: 0}
-  turnPerspective: {fileID: 0}
+  _boardMapConfig: {fileID: 11400000, guid: 61a6a37c6982b1a4ba8789220f3edab9, type: 2}
+  _boardView: {fileID: 0}
+  _turnPerspective: {fileID: 0}

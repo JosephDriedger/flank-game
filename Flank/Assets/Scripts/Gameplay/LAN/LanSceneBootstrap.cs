@@ -7,23 +7,24 @@ public sealed class LanSceneBootstrap : MonoBehaviour
 
     private void Start()
     {
-        if (NetworkManager.Singleton == null)
+        NetworkManager nm = NetworkManager.Singleton;
+        if (nm == null || nm.ShutdownInProgress)
         {
             return;
         }
 
-        if (!NetworkManager.Singleton.IsServer)
+        if (!nm.IsServer)
         {
             return;
         }
 
         if (lanGameControllerPrefab == null)
         {
-            Debug.LogError("LanSceneBootstrap missing lanGameControllerPrefab reference.");
+            Debug.LogError("[LAN] LanSceneBootstrap missing prefab reference.", this);
             return;
         }
 
-        if (FindFirstObjectByType<LanGameController>() != null)
+        if (FindFirstObjectByType<LanGameController>(FindObjectsInactive.Include) != null)
         {
             return;
         }

@@ -7,143 +7,114 @@ using UnityEngine;
 public sealed class LanGameController : NetworkBehaviour
 {
     [Header("Config")]
-    [SerializeField] private BoardMapConfig boardMapConfig;
+    [SerializeField] private BoardMapConfig _boardMapConfig;
 
     [Header("Scene")]
-    [SerializeField] private BoardView boardView;
-    [SerializeField] private TurnPerspectiveController turnPerspective;
+    [SerializeField] private BoardView _boardView;
+    [SerializeField] private TurnPerspectiveController _turnPerspective;
 
-    private readonly NetworkVariable<FixedString4096Bytes> stateJson =
+    private BoardModel _board;
+    private GameState _state;
+
+    private TurnSystem _turnSystem;
+    private RulesEngine _rules;
+
+    private readonly NetworkVariable<FixedString4096Bytes> _snapshotJson =
         new NetworkVariable<FixedString4096Bytes>(
-            default,
+            new FixedString4096Bytes(),
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Server);
 
     public event Action<GameState> StateChanged;
 
-    private BoardModel board;
-    private GameState state;
+    public GameState State
+    {
+        get
+        {
+            return _state;
+        }
+    }
 
-    private TurnSystem turnSystem;
-    private RulesEngine rules;
-
-    public GameState State => state;
-    public BoardModel Board => board;
+    public BoardModel Board
+    {
+        get
+        {
+            return _board;
+        }
+    }
 
     private void Awake()
     {
-        turnSystem = new TurnSystem(new TurnRules(), new MoveBudget());
-        rules = new RulesEngine();
+        if (_boardView == null)
+        {
+            _boardView = FindAnyObjectByType<BoardView>(FindObjectsInactive.Include);
+        }
+
+        if (_turnPerspective == null)
+        {
+            _turnPerspective = FindAnyObjectByType<TurnPerspectiveController>(FindObjectsInactive.Include);
+        }
     }
 
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
 
-        EnsureSceneReferences();
-        BuildBoardLocal();
-
-        stateJson.OnValueChanged += HandleStateJsonChanged;
+        _snapshotJson.OnValueChanged -= HandleSnapshotChanged;
+        _snapshotJson.OnValueChanged += HandleSnapshotChanged;
 
         if (IsServer)
         {
+            _turnSystem = new TurnSystem(new TurnRules(), new MoveBudget());
+            _rules = new RulesEngine();
             NewGameServer();
         }
 
-        // IMPORTANT: everyone (including host) renders from the same replicated pipeline.
-        // Host will apply its own value immediately after PublishSnapshotServer.
-        if (!IsServer)
+        if (_snapshotJson.Value.Length > 0)
         {
-            // Client waits for OnValueChanged.
+            ApplySnapshotLocal(_snapshotJson.Value.ToString());
         }
     }
 
-    public override void OnNetworkDespawn()
+    public override void OnDestroy()
     {
-        stateJson.OnValueChanged -= HandleStateJsonChanged;
-        base.OnNetworkDespawn();
-    }
-
-    // ============================================================
-    // SIDE / TURN RESOLUTION
-    // ============================================================
-
-    public bool IsLanSessionActive()
-    {
-        return NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening;
-    }
-
-    public LobbySide GetLocalSide()
-    {
-        if (NetworkManager.Singleton == null || LanLobbyState.Instance == null)
-        {
-            return LobbySide.None;
-        }
-
-        ulong localId = NetworkManager.Singleton.LocalClientId;
-
-        if (LanLobbyState.Instance.TryGetSide(localId, out LobbySide side))
-        {
-            return side;
-        }
-
-        // Fallback path
-        for (int i = 0; i < LanLobbyState.Instance.Players.Count; i++)
-        {
-            LobbyPlayerData p = LanLobbyState.Instance.Players[i];
-            if (p.ClientId == localId)
-            {
-                return p.Side;
-            }
-        }
-
-        return LobbySide.None;
+        base.OnDestroy();
+        _snapshotJson.OnValueChanged -= HandleSnapshotChanged;
     }
 
     public bool IsLocalPlayersTurn()
     {
-        if (state == null)
+        if (_state == null || NetworkManager.Singleton == null)
         {
             return false;
         }
 
-        LobbySide side = GetLocalSide();
-
-        if (state.currentTurn == Role.Attacker)
+        if (!TryGetLocalRole(out Role localRole))
         {
-            return side == LobbySide.Attacker;
+            // If the lobby state hasn't replicated yet, fall back to a deterministic 2-player mapping
+            // so a player is not soft-locked from moving.
+            if (!TryInferRoleForClientId(NetworkManager.Singleton.LocalClientId, out localRole))
+            {
+                return false;
+            }
         }
 
-        if (state.currentTurn == Role.Defender)
-        {
-            return side == LobbySide.Defender;
-        }
-
-        return false;
+        return _state.currentTurn == localRole;
     }
 
-    public bool CanUsePieceThisTurn(string pieceId)
+    public void RequestEndTurnEarly()
     {
-        if (state == null)
-        {
-            return false;
-        }
-
         if (!IsLocalPlayersTurn())
         {
-            return false;
+            return;
         }
 
-        return turnSystem.CanUsePiece(state, pieceId);
+        EndTurnEarlyServerRpc();
     }
-
-    // ============================================================
-    // CLIENT REQUESTS
-    // ============================================================
 
     public void RequestMove(string pieceId, HexCoord destination)
     {
-        if (!IsLanSessionActive() || !IsLocalPlayersTurn())
+        if (!IsLocalPlayersTurn())
         {
             return;
         }
@@ -156,168 +127,189 @@ public sealed class LanGameController : NetworkBehaviour
         RequestMoveServerRpc(pieceId, destination.q, destination.r);
     }
 
-    public void RequestEndTurnEarly()
-    {
-        if (!IsLanSessionActive() || !IsLocalPlayersTurn())
-        {
-            return;
-        }
-
-        RequestEndTurnEarlyServerRpc();
-    }
-
-    // ============================================================
-    // SERVER: GAME SETUP + PUBLISH
-    // ============================================================
-
     private void NewGameServer()
     {
-        board = new BoardModel();
-        state = new GameState();
-        state.result = GameResult.None;
+        _board = new BoardModel();
+        _state = new GameState();
+        _state.result = GameResult.None;
 
         List<(string id, HexCoord coord)> attackers;
         List<(string id, HexCoord coord)> defenders;
         List<(string id, HexCoord coord)> flags;
 
-        BoardMapBuilder.Build(boardMapConfig, board, out attackers, out defenders, out flags);
+        BoardMapBuilder.Build(_boardMapConfig, _board, out attackers, out defenders, out flags);
 
         for (int i = 0; i < attackers.Count; i++)
         {
             PieceModel p = new PieceModel(attackers[i].id, Role.Attacker, attackers[i].coord);
-            state.AddPiece(p);
-            board.GetHex(p.position).occupantPieceId = p.id;
+            _state.AddPiece(p);
+            _board.GetHex(p.position).occupantPieceId = p.id;
         }
 
         for (int i = 0; i < defenders.Count; i++)
         {
             PieceModel p = new PieceModel(defenders[i].id, Role.Defender, defenders[i].coord);
-            state.AddPiece(p);
-            board.GetHex(p.position).occupantPieceId = p.id;
+            _state.AddPiece(p);
+            _board.GetHex(p.position).occupantPieceId = p.id;
         }
 
         for (int i = 0; i < flags.Count; i++)
         {
             FlagModel f = new FlagModel(flags[i].id, flags[i].coord);
-            state.AddFlag(f);
-            board.GetHex(flags[i].coord).flagId = f.id;
+            _state.AddFlag(f);
+            _board.GetHex(flags[i].coord).flagId = f.id;
         }
 
-        BeginTurnServer(Role.Attacker);
+        _turnSystem.BeginTurn(_state, Role.Attacker);
+
         PublishSnapshotServer();
     }
 
-    private void BeginTurnServer(Role role)
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    private void RequestMoveServerRpc(FixedString32Bytes pieceId, int q, int r, RpcParams rpcParams = default)
     {
-        turnSystem.BeginTurn(state, role);
+        if (_state == null || _board == null)
+        {
+            return;
+        }
+
+        if (_state.result != GameResult.None)
+        {
+            return;
+        }
+
+        ulong sender = rpcParams.Receive.SenderClientId;
+
+        if (!TryGetRoleForClientId(sender, out Role requesterRole))
+        {
+            // Sender role not known yet. Reject safely.
+            return;
+        }
+
+        if (_state.currentTurn != requesterRole)
+        {
+            return;
+        }
+
+        PlayerAction action = new PlayerAction(pieceId.ToString(), new HexCoord(q, r));
+        TryApplyActionServer(action);
     }
-
-    private void PublishSnapshotServer()
-    {
-        GameStateSnapshot snap = BuildSnapshot(state);
-        string json = JsonUtility.ToJson(snap);
-
-        stateJson.Value = new FixedString4096Bytes(json);
-
-        // IMPORTANT: Host applies EXACTLY the same snapshot pipeline as clients.
-        ApplySnapshotLocal(snap);
-    }
-
-    // ============================================================
-    // SERVER RPCs
-    // ============================================================
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    private void RequestMoveServerRpc(string pieceId, int q, int r, RpcParams rpcParams = default)
+    private void EndTurnEarlyServerRpc(RpcParams rpcParams = default)
     {
-        if (!IsServer || state == null || board == null)
+        if (_state == null)
         {
             return;
         }
 
-        if (!turnSystem.CanAct(state))
+        if (_state.currentTurn != Role.Defender)
         {
             return;
         }
 
-        LobbySide senderSide = GetSenderSide(rpcParams.Receive.SenderClientId);
-        if (!DoesSideMatchTurn(senderSide, state.currentTurn))
+        if (_state.turnProgress != null && _state.turnProgress.movesUsed < 1)
         {
             return;
         }
 
-        PieceModel movingPiece = state.GetPiece(pieceId);
-        if (movingPiece == null || movingPiece.isCaptured)
+        ulong sender = rpcParams.Receive.SenderClientId;
+
+        if (!TryGetRoleForClientId(sender, out Role requesterRole))
         {
             return;
         }
 
-        if (movingPiece.role != state.currentTurn)
+        if (requesterRole != Role.Defender)
         {
             return;
         }
 
-        if (!turnSystem.CanUsePiece(state, pieceId))
+        BeginTurnServer(_turnSystem.NextRole(_state.currentTurn));
+    }
+
+    private void TryApplyActionServer(PlayerAction action)
+    {
+        if (action == null)
         {
             return;
         }
 
-        HexCoord fromBeforeMove = movingPiece.position;
+        if (!_turnSystem.CanAct(_state))
+        {
+            return;
+        }
 
-        PlayerAction action = new PlayerAction(pieceId, new HexCoord(q, r));
-        bool applied = rules.TryApplyAction(action, state, board);
+        if (!_turnSystem.CanUsePiece(_state, action.pieceId))
+        {
+            return;
+        }
+
+        PieceModel movingPiece = _state.GetPiece(action.pieceId);
+        HexCoord fromBeforeMove = movingPiece != null ? movingPiece.position : new HexCoord(0, 0);
+
+        bool applied = _rules.TryApplyAction(action, _state, _board);
         if (!applied)
         {
             return;
         }
 
-        turnSystem.SpendAction(state, pieceId, fromBeforeMove);
+        _turnSystem.SpendAction(_state, action.pieceId, fromBeforeMove);
+        _state.result = _rules.GetGameResult(_state);
 
-        state.result = rules.GetGameResult(state);
+        PublishSnapshotServer();
 
-        if (state.result == GameResult.None && !turnSystem.CanAct(state))
+        if (_state.result != GameResult.None)
         {
-            BeginTurnServer(turnSystem.NextRole(state.currentTurn));
+            return;
+        }
+
+        if (_turnSystem.CanAct(_state))
+        {
+            return;
+        }
+
+        BeginTurnServer(_turnSystem.NextRole(_state.currentTurn));
+    }
+
+    private void BeginTurnServer(Role role)
+    {
+        // Re-evaluate result on turn start (win/lose can occur when a turn advances).
+        _turnSystem.BeginTurn(_state, role);
+        _state.result = _rules.GetGameResult(_state);
+
+        // If the next player has no actions, auto-advance (prevents soft-lock turns).
+        int safety = 0;
+        while (_state.result == GameResult.None && !_turnSystem.CanAct(_state) && safety < 4)
+        {
+            Role next = _turnSystem.NextRole(_state.currentTurn);
+            _turnSystem.BeginTurn(_state, next);
+            _state.result = _rules.GetGameResult(_state);
+            safety += 1;
         }
 
         PublishSnapshotServer();
     }
 
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    private void RequestEndTurnEarlyServerRpc(RpcParams rpcParams = default)
+    private void PublishSnapshotServer()
     {
-        if (!IsServer || state == null)
-        {
-            return;
-        }
-
-        LobbySide senderSide = GetSenderSide(rpcParams.Receive.SenderClientId);
-        if (senderSide != LobbySide.Defender)
-        {
-            return;
-        }
-
-        if (state.currentTurn != Role.Defender)
-        {
-            return;
-        }
-
-        if (state.turnProgress != null && state.turnProgress.movesUsed < 1)
-        {
-            return;
-        }
-
-        BeginTurnServer(turnSystem.NextRole(state.currentTurn));
-        PublishSnapshotServer();
+        GameStateSnapshot snap = BuildSnapshot(_state);
+        string json = JsonUtility.ToJson(snap);
+        _snapshotJson.Value = new FixedString4096Bytes(json);
     }
 
-    // ============================================================
-    // CLIENT: APPLY REPLICATED STATE
-    // ============================================================
-
-    private void HandleStateJsonChanged(FixedString4096Bytes previous, FixedString4096Bytes current)
+    private void HandleSnapshotChanged(FixedString4096Bytes previous, FixedString4096Bytes next)
     {
-        string json = current.ToString();
+        if (next.Length <= 0)
+        {
+            return;
+        }
+
+        ApplySnapshotLocal(next.ToString());
+    }
+
+    private void ApplySnapshotLocal(string json)
+    {
         if (string.IsNullOrWhiteSpace(json))
         {
             return;
@@ -329,194 +321,76 @@ public sealed class LanGameController : NetworkBehaviour
             return;
         }
 
-        ApplySnapshotLocal(snap);
+        LoadFromSnapshotLocal(snap);
+        ApplyPerspectiveLocal();
+
+        StateChanged?.Invoke(_state);
     }
 
-    private void ApplySnapshotLocal(GameStateSnapshot snap)
+    private void LoadFromSnapshotLocal(GameStateSnapshot snap)
     {
-        EnsureSceneReferences();
+        _board = new BoardModel();
+        _state = new GameState();
 
-        if (board == null)
+        _state.result = ParseResult(snap.result);
+        _state.currentTurn = (Role)snap.currentTurn;
+
+        // Replicate turn progress so clients can:
+        // - display correct "Moves: used / allowed"
+        // - enforce the same per-turn piece gating rules locally
+        if (_state.turnProgress != null)
         {
-            BuildBoardLocal();
-        }
+            _state.turnProgress.movesUsed = snap.movesUsed;
+            _state.turnProgress.movesAllowed = snap.movesAllowed;
+            _state.turnProgress.firstMovedPieceId = string.IsNullOrWhiteSpace(snap.firstMovedPieceId)
+                ? null
+                : snap.firstMovedPieceId;
 
-        state = SnapshotToState(snap);
-
-        if (boardView != null)
-        {
-            boardView.SyncPieces(state);
-            boardView.ClearHighlights();
-        }
-
-        ApplyPerspectiveIfPossible();
-
-        StateChanged?.Invoke(state);
-    }
-
-    private void BuildBoardLocal()
-    {
-        if (board == null)
-        {
-            board = new BoardModel();
-
-            List<(string id, HexCoord coord)> attackers;
-            List<(string id, HexCoord coord)> defenders;
-            List<(string id, HexCoord coord)> flags;
-
-            BoardMapBuilder.Build(boardMapConfig, board, out attackers, out defenders, out flags);
-        }
-
-        if (boardView != null)
-        {
-            boardView.Build(board);
-        }
-    }
-
-    private void EnsureSceneReferences()
-    {
-        if (boardView == null)
-        {
-            boardView = FindFirstObjectByType<BoardView>();
-        }
-
-        if (turnPerspective == null)
-        {
-            turnPerspective = FindFirstObjectByType<TurnPerspectiveController>();
-        }
-    }
-
-    private void ApplyPerspectiveIfPossible()
-    {
-        if (turnPerspective == null || state == null)
-        {
-            return;
-        }
-
-        // IMPORTANT: LAN perspective is "who I am", not "is it my turn"
-        LobbySide side = GetLocalSide();
-        bool isLocalAttacker = side == LobbySide.Attacker;
-
-        turnPerspective.Apply(state.currentTurn, isLocalAttacker);
-    }
-
-    // ============================================================
-    // SNAPSHOT (INCLUDING TURN PROGRESS!)
-    // ============================================================
-
-    [Serializable]
-    private sealed class GameStateSnapshot
-    {
-        public string result;
-        public int currentTurn;
-
-        public int movesUsed;
-        public int movesAllowed;
-
-        public List<PieceSnapshot> pieces = new List<PieceSnapshot>();
-        public List<FlagSnapshot> flags = new List<FlagSnapshot>();
-
-        [Serializable]
-        public sealed class PieceSnapshot
-        {
-            public string id;
-            public int role;
-            public int q;
-            public int r;
-            public bool isCaptured;
-            public string carryingFlagId;
-        }
-
-        [Serializable]
-        public sealed class FlagSnapshot
-        {
-            public string id;
-            public bool isCaptured;
-            public string carrierPieceId;
-            public bool hasLocation;
-            public int q;
-            public int r;
-        }
-    }
-
-    private static GameStateSnapshot BuildSnapshot(GameState src)
-    {
-        GameStateSnapshot snap = new GameStateSnapshot
-        {
-            result = src.result.ToString(),
-            currentTurn = (int)src.currentTurn,
-            movesUsed = src.turnProgress != null ? src.turnProgress.movesUsed : 0,
-            movesAllowed = src.turnProgress != null ? src.turnProgress.movesAllowed : 0
-        };
-
-        foreach (PieceModel p in src.pieces.Values)
-        {
-            if (p == null)
+            if (snap.hasFirstMoveFrom)
             {
-                continue;
+                _state.turnProgress.firstMoveFrom = new HexCoord(snap.firstMoveFromQ, snap.firstMoveFromR);
             }
-
-            GameStateSnapshot.PieceSnapshot ps = new GameStateSnapshot.PieceSnapshot
+            else
             {
-                id = p.id,
-                role = (int)p.role,
-                q = p.position.q,
-                r = p.position.r,
-                isCaptured = p.isCaptured,
-                carryingFlagId = p.carryingFlagId
-            };
-
-            snap.pieces.Add(ps);
-        }
-
-        foreach (FlagModel f in src.flags.Values)
-        {
-            if (f == null)
-            {
-                continue;
+                _state.turnProgress.firstMoveFrom = new HexCoord(0, 0);
             }
-
-            bool hasLoc = f.location.HasValue;
-
-            GameStateSnapshot.FlagSnapshot fs = new GameStateSnapshot.FlagSnapshot
-            {
-                id = f.id,
-                isCaptured = f.isCaptured,
-                carrierPieceId = f.carrierPieceId,
-                hasLocation = hasLoc,
-                q = hasLoc ? f.location.Value.q : 0,
-                r = hasLoc ? f.location.Value.r : 0
-            };
-
-            snap.flags.Add(fs);
         }
 
-        return snap;
-    }
+        List<(string id, HexCoord coord)> attackers;
+        List<(string id, HexCoord coord)> defenders;
+        List<(string id, HexCoord coord)> flags;
 
-    private static GameState SnapshotToState(GameStateSnapshot snap)
-    {
-        GameState gs = new GameState();
-        gs.result = ParseResult(snap.result);
-        gs.currentTurn = (Role)snap.currentTurn;
+        BoardMapBuilder.Build(_boardMapConfig, _board, out attackers, out defenders, out flags);
 
-        // TurnProgress is readonly in your project, so DO NOT assign it.
-        // Instead, update it if it exists.
-        if (gs.turnProgress != null)
+        for (int i = 0; i < attackers.Count; i++)
         {
-            gs.turnProgress.movesUsed = snap.movesUsed;
-            gs.turnProgress.movesAllowed = snap.movesAllowed;
+            _board.GetHex(attackers[i].coord).occupantPieceId = null;
+        }
+
+        for (int i = 0; i < defenders.Count; i++)
+        {
+            _board.GetHex(defenders[i].coord).occupantPieceId = null;
+        }
+
+        for (int i = 0; i < flags.Count; i++)
+        {
+            _board.GetHex(flags[i].coord).flagId = null;
         }
 
         for (int i = 0; i < snap.pieces.Count; i++)
         {
             GameStateSnapshot.PieceSnapshot ps = snap.pieces[i];
-
             PieceModel p = new PieceModel(ps.id, (Role)ps.role, new HexCoord(ps.q, ps.r));
+
             p.isCaptured = ps.isCaptured;
             p.carryingFlagId = string.IsNullOrWhiteSpace(ps.carryingFlagId) ? null : ps.carryingFlagId;
 
-            gs.AddPiece(p);
+            _state.AddPiece(p);
+
+            if (!p.isCaptured)
+            {
+                _board.GetHex(p.position).occupantPieceId = p.id;
+            }
         }
 
         for (int i = 0; i < snap.flags.Count; i++)
@@ -528,68 +402,193 @@ public sealed class LanGameController : NetworkBehaviour
 
             f.isCaptured = fs.isCaptured;
             f.carrierPieceId = string.IsNullOrWhiteSpace(fs.carrierPieceId) ? null : fs.carrierPieceId;
-            f.location = fs.hasLocation ? new HexCoord(fs.q, fs.r) : (HexCoord?)null;
 
-            gs.AddFlag(f);
+            if (fs.hasLocation)
+            {
+                f.location = new HexCoord(fs.q, fs.r);
+            }
+            else
+            {
+                f.location = null;
+            }
+
+            _state.AddFlag(f);
+
+            if (!f.isCaptured && f.location.HasValue && string.IsNullOrWhiteSpace(f.carrierPieceId))
+            {
+                _board.GetHex(f.location.Value).flagId = f.id;
+            }
         }
 
-        return gs;
+        if (_boardView != null)
+        {
+            _boardView.Build(_board);
+            _boardView.SyncPieces(_state);
+            _boardView.ClearHighlights();
+        }
     }
 
-
-    private static GameResult ParseResult(string raw)
+    private void ApplyPerspectiveLocal()
     {
-        if (raw == GameResult.AttackersWin.ToString())
+        if (_turnPerspective == null || NetworkManager.Singleton == null || _state == null)
         {
-            return GameResult.AttackersWin;
+            return;
         }
 
-        if (raw == GameResult.DefendersWin.ToString())
+        if (!TryGetLocalRole(out Role localRole))
         {
-            return GameResult.DefendersWin;
+            // Role not known yet; do not apply a potentially wrong perspective.
+            return;
+        }
+
+        // In LAN, always show local player's perspective (prevents wrong view on join).
+        _turnPerspective.Apply(localRole, true);
+    }
+
+    private static GameStateSnapshot BuildSnapshot(GameState state)
+    {
+        GameStateSnapshot snap = new GameStateSnapshot();
+
+        snap.result = state.result.ToString();
+        snap.currentTurn = (int)state.currentTurn;
+        snap.turns = 0;
+
+        if (state.turnProgress != null)
+        {
+            snap.movesUsed = state.turnProgress.movesUsed;
+            snap.movesAllowed = state.turnProgress.movesAllowed;
+            snap.firstMovedPieceId = state.turnProgress.firstMovedPieceId;
+
+            // firstMoveFrom is only meaningful for defender backtrack logic, but harmless to replicate.
+            snap.hasFirstMoveFrom = true;
+            snap.firstMoveFromQ = state.turnProgress.firstMoveFrom.q;
+            snap.firstMoveFromR = state.turnProgress.firstMoveFrom.r;
+        }
+        else
+        {
+            snap.movesUsed = 0;
+            snap.movesAllowed = 0;
+            snap.firstMovedPieceId = null;
+            snap.hasFirstMoveFrom = false;
+            snap.firstMoveFromQ = 0;
+            snap.firstMoveFromR = 0;
+        }
+
+        foreach (PieceModel p in state.pieces.Values)
+        {
+            GameStateSnapshot.PieceSnapshot ps = new GameStateSnapshot.PieceSnapshot();
+            ps.id = p.id;
+            ps.role = (int)p.role;
+            ps.q = p.position.q;
+            ps.r = p.position.r;
+            ps.isCaptured = p.isCaptured;
+            ps.carryingFlagId = p.carryingFlagId;
+            snap.pieces.Add(ps);
+        }
+
+        foreach (FlagModel f in state.flags.Values)
+        {
+            GameStateSnapshot.FlagSnapshot fs = new GameStateSnapshot.FlagSnapshot();
+            fs.id = f.id;
+            fs.isCaptured = f.isCaptured;
+            fs.carrierPieceId = f.carrierPieceId;
+
+            if (f.location.HasValue)
+            {
+                fs.hasLocation = true;
+                fs.q = f.location.Value.q;
+                fs.r = f.location.Value.r;
+            }
+            else
+            {
+                fs.hasLocation = false;
+                fs.q = 0;
+                fs.r = 0;
+            }
+
+            snap.flags.Add(fs);
+        }
+
+        return snap;
+    }
+
+    private static GameResult ParseResult(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s))
+        {
+            return GameResult.None;
+        }
+
+        if (Enum.TryParse(s, out GameResult r))
+        {
+            return r;
         }
 
         return GameResult.None;
     }
 
-    // ============================================================
-    // LOBBY ROLE HELPERS
-    // ============================================================
-
-    private LobbySide GetSenderSide(ulong clientId)
+    private bool TryGetLocalRole(out Role role)
     {
-        if (LanLobbyState.Instance == null)
+        role = Role.Attacker;
+
+        if (NetworkManager.Singleton == null)
         {
-            return LobbySide.None;
+            return false;
         }
 
-        if (LanLobbyState.Instance.TryGetSide(clientId, out LobbySide side))
+        if (LanLobbyState.Instance != null &&
+            LanLobbyState.Instance.TryGetRoleForClientId(NetworkManager.Singleton.LocalClientId, out role))
         {
-            return side;
+            return true;
         }
 
-        for (int i = 0; i < LanLobbyState.Instance.Players.Count; i++)
-        {
-            LobbyPlayerData p = LanLobbyState.Instance.Players[i];
-            if (p.ClientId == clientId)
-            {
-                return p.Side;
-            }
-        }
-
-        return LobbySide.None;
+        // Fallback: deterministic 2-player mapping (host=attacker, client=defender).
+        // Used if the lobby state has not replicated yet.
+        return TryInferRoleForClientId(NetworkManager.Singleton.LocalClientId, out role);
     }
 
-    private static bool DoesSideMatchTurn(LobbySide side, Role turn)
+    private bool TryGetRoleForClientId(ulong clientId, out Role role)
     {
-        if (turn == Role.Attacker)
+        role = Role.Attacker;
+
+        if (LanLobbyState.Instance != null && LanLobbyState.Instance.TryGetRoleForClientId(clientId, out role))
         {
-            return side == LobbySide.Attacker;
+            return true;
         }
 
-        if (turn == Role.Defender)
+        // Fallback: deterministic 2-player mapping.
+        return TryInferRoleForClientId(clientId, out role);
+    }
+
+    private bool TryInferRoleForClientId(ulong clientId, out Role role)
+    {
+        role = Role.Attacker;
+
+        if (NetworkManager.Singleton == null)
         {
-            return side == LobbySide.Defender;
+            return false;
+        }
+
+        // Host is attacker by default. First (and only) client is defender.
+        // This is only used if the lobby state isn't available yet.
+        if (clientId == NetworkManager.Singleton.LocalClientId && NetworkManager.Singleton.IsHost)
+        {
+            role = Role.Attacker;
+            return true;
+        }
+
+        // If we're on server and asking about someone else, that someone else is the client.
+        if (NetworkManager.Singleton.IsServer && clientId != NetworkManager.Singleton.LocalClientId)
+        {
+            role = Role.Defender;
+            return true;
+        }
+
+        // If we're a connected client, we are the defender by default.
+        if (NetworkManager.Singleton.IsClient && !NetworkManager.Singleton.IsHost && clientId == NetworkManager.Singleton.LocalClientId)
+        {
+            role = Role.Defender;
+            return true;
         }
 
         return false;

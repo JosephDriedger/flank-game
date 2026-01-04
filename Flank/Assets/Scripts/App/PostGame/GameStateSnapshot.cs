@@ -9,6 +9,14 @@ public sealed class GameStateSnapshot
 
     public int turns;
 
+    // Turn budget / gating (required for LAN clients to see move counts and enforce the same rules as server).
+    public int movesUsed;
+    public int movesAllowed;
+    public string firstMovedPieceId;
+    public bool hasFirstMoveFrom;
+    public int firstMoveFromQ;
+    public int firstMoveFromR;
+
     public List<PieceSnapshot> pieces = new List<PieceSnapshot>();
     public List<FlagSnapshot> flags = new List<FlagSnapshot>();
 

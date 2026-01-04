@@ -22,7 +22,7 @@ public sealed class LanPlayerEntryUI : MonoBehaviour
     public void Bind(
         string playerName,
         bool isHostPlayer,
-        LobbySide side,
+        Role side,
         bool isReady,
         bool canSwitch,
         bool canKick,
@@ -76,14 +76,14 @@ public sealed class LanPlayerEntryUI : MonoBehaviour
         }
     }
 
-    private Sprite GetSpriteForSide(LobbySide side)
+    private Sprite GetSpriteForSide(Role side)
     {
-        if (side == LobbySide.Attacker)
+        if (side == Role.Attacker)
         {
             return attackerSprite;
         }
 
-        if (side == LobbySide.Defender)
+        if (side == Role.Defender)
         {
             return defenderSprite;
         }

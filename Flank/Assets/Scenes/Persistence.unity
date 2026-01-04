@@ -328,8 +328,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c2bafee8192a6ba448b9f4b2b2303398, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LanNetworkService
-  networkManager: {fileID: 1643968261}
-  unityTransport: {fileID: 1643968260}
 --- !u!114 &1643968260
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -374,7 +372,7 @@ MonoBehaviour:
   NetworkManagerExpanded: 0
   NetworkConfig:
     ProtocolVersion: 0
-    NetworkTransport: {fileID: 0}
+    NetworkTransport: {fileID: 1643968260}
     PlayerPrefab: {fileID: 0}
     Prefabs:
       NetworkPrefabsLists:

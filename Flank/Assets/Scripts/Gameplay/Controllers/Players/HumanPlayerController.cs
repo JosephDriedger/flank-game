@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public sealed class HumanPlayerController : MonoBehaviour, IPlayerController
 {
@@ -69,7 +70,7 @@ public sealed class HumanPlayerController : MonoBehaviour, IPlayerController
         // --------------------------------------------------------
         // RIGHT CLICK: defenders may end turn early
         // --------------------------------------------------------
-        if (Input.GetMouseButtonDown(1))
+        if (Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame)
         {
             if (_state.currentTurn == Role.Defender &&
                 _state.turnProgress.movesUsed > 0 &&
@@ -85,12 +86,13 @@ public sealed class HumanPlayerController : MonoBehaviour, IPlayerController
         // --------------------------------------------------------
         // LEFT CLICK
         // --------------------------------------------------------
-        if (!Input.GetMouseButtonDown(0))
+        if (Mouse.current == null || !Mouse.current.leftButton.wasPressedThisFrame)
         {
             return;
         }
 
-        Vector2 world = _camera.ScreenToWorldPoint(Input.mousePosition);
+        Vector2 mousePos = Mouse.current.position.ReadValue();
+        Vector3 world = _camera.ScreenToWorldPoint(new Vector3(mousePos.x, mousePos.y, 0f));
         RaycastHit2D hit = Physics2D.Raycast(world, Vector2.zero, 0f, _boardMask);
 
         if (hit.collider == null)

@@ -13,7 +13,6 @@ public sealed class TurnProgress
         movesAllowed = 0;
         firstMovedPieceId = null;
         firstMoveFrom = new HexCoord(0, 0);
-        firstMoveFrom = new HexCoord(0, 0);
     }
 
     public void Reset()

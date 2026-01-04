@@ -1,26 +1,17 @@
+using System;
 using System.Collections;
-using System.Collections.Generic;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
 using UnityEngine;
 
-[RequireComponent(typeof(NetworkManager))]
-[RequireComponent(typeof(UnityTransport))]
 public sealed class LanNetworkService : MonoBehaviour
 {
     public static LanNetworkService Instance { get; private set; }
 
-    // Join timeout coroutines may be started when panels switch/disable.
-    // This runner guarantees we always have an active MonoBehaviour.
-    private static CoroutineRunner runner;
+    private readonly System.Collections.Generic.Dictionary<Coroutine, bool> _trackedCoroutines =
+        new System.Collections.Generic.Dictionary<Coroutine, bool>();
 
-    // Track which MonoBehaviour started which coroutine so we can stop it correctly.
-    private readonly Dictionary<Coroutine, MonoBehaviour> coroutineOwners = new Dictionary<Coroutine, MonoBehaviour>();
-
-    [SerializeField] private NetworkManager networkManager;
-    [SerializeField] private UnityTransport unityTransport;
-
-    public bool IsRunning => networkManager != null && (networkManager.IsClient || networkManager.IsServer);
+    private UnityTransport _transport;
 
     private void Awake()
     {
@@ -33,75 +24,85 @@ public sealed class LanNetworkService : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
 
-        if (networkManager == null)
+        _transport = GetComponent<UnityTransport>();
+
+        EnsureDisconnectSubscription();
+    }
+
+    private void OnDestroy()
+    {
+        if (NetworkManager.Singleton != null)
         {
-            networkManager = GetComponent<NetworkManager>();
+            NetworkManager.Singleton.OnClientDisconnectCallback -= HandleClientDisconnected;
+        }
+    }
+
+    private void EnsureDisconnectSubscription()
+    {
+        if (NetworkManager.Singleton == null)
+        {
+            return;
         }
 
-        if (unityTransport == null)
-        {
-            unityTransport = GetComponent<UnityTransport>();
-        }
-
-        if (networkManager.NetworkConfig.NetworkTransport == null)
-        {
-            networkManager.NetworkConfig.NetworkTransport = unityTransport;
-        }
+        NetworkManager.Singleton.OnClientDisconnectCallback -= HandleClientDisconnected;
+        NetworkManager.Singleton.OnClientDisconnectCallback += HandleClientDisconnected;
     }
 
     public bool StartHost(ushort port)
     {
-        if (networkManager == null || unityTransport == null)
+        if (NetworkManager.Singleton == null)
         {
-            Debug.LogError("LanNetworkService missing NetworkManager/UnityTransport.");
+            Debug.LogError("LanNetworkService: NetworkManager.Singleton is null.");
             return false;
         }
 
-        if (networkManager.IsClient || networkManager.IsServer)
+        EnsureDisconnectSubscription();
+
+        if (_transport == null)
         {
-            Shutdown();
+            _transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
         }
 
-        unityTransport.SetConnectionData("0.0.0.0", port);
+        if (_transport != null)
+        {
+            _transport.SetConnectionData("0.0.0.0", port);
+        }
 
-        bool started = networkManager.StartHost();
+        bool started = NetworkManager.Singleton.StartHost();
         if (!started)
         {
-            Debug.LogError($"StartHost failed on port {port}. Is it already in use?");
-            Shutdown();
+            Debug.LogError("LanNetworkService: StartHost failed.");
             return false;
         }
 
+        LanSessionConfig.HostPort = port;
         return true;
     }
 
-    public bool StartClient(string ipAddress, ushort port)
+    public bool StartClient(string ip, ushort port)
     {
-        Debug.Log($"Attempting LAN join -> {ipAddress}:{port}");
-
-        if (networkManager == null || unityTransport == null)
+        if (NetworkManager.Singleton == null)
         {
-            Debug.LogError("LanNetworkService missing NetworkManager/UnityTransport.");
+            Debug.LogError("LanNetworkService: NetworkManager.Singleton is null.");
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(ipAddress))
+        EnsureDisconnectSubscription();
+
+        if (_transport == null)
         {
-            ipAddress = "127.0.0.1";
+            _transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
         }
 
-        if (networkManager.IsClient || networkManager.IsServer)
+        if (_transport != null)
         {
-            Shutdown();
+            _transport.SetConnectionData(ip, port);
         }
 
-        unityTransport.SetConnectionData(ipAddress, port);
-
-        bool started = networkManager.StartClient();
+        bool started = NetworkManager.Singleton.StartClient();
         if (!started)
         {
-            Debug.LogError($"StartClient failed (ip={ipAddress}, port={port}).");
-            Shutdown();
+            Debug.LogError("LanNetworkService: StartClient failed.");
             return false;
         }
 
@@ -110,119 +111,97 @@ public sealed class LanNetworkService : MonoBehaviour
 
     public void Shutdown()
     {
-        if (NetworkManager.Singleton == null)
+        StopAllTrackedCoroutines();
+
+        if (NetworkManager.Singleton != null)
         {
-            return;
+            NetworkManager.Singleton.Shutdown();
         }
-
-        NetworkManager nm = NetworkManager.Singleton;
-
-        if (nm.IsServer)
-        {
-            List<ulong> clientsToDisconnect = new List<ulong>();
-            foreach (ulong id in nm.ConnectedClientsIds)
-            {
-                if (id != nm.LocalClientId)
-                {
-                    clientsToDisconnect.Add(id);
-                }
-            }
-
-            for (int i = 0; i < clientsToDisconnect.Count; i++)
-            {
-                nm.DisconnectClient(clientsToDisconnect[i]);
-            }
-
-            if (LanLobbyState.Instance != null)
-            {
-                LanLobbyState.Instance.ClearLobbyServerOnly();
-            }
-        }
-
-        nm.Shutdown();
     }
 
-    public Coroutine RunJoinTimeout(
-        MonoBehaviour requester,
-        float timeoutSeconds,
-        System.Action onTimeout)
+    public Coroutine RunJoinTimeout(MonoBehaviour owner, float seconds, Action onTimeout)
     {
-        MonoBehaviour coroutineOwner = this;
-
-        if (!this.isActiveAndEnabled)
+        if (owner == null)
         {
-            coroutineOwner = GetOrCreateRunner();
+            return null;
         }
 
-        Coroutine c = coroutineOwner.StartCoroutine(JoinTimeoutRoutine(requester, timeoutSeconds, onTimeout));
+        Coroutine c = owner.StartCoroutine(JoinTimeoutRoutine(seconds, onTimeout));
         if (c != null)
         {
-            coroutineOwners[c] = coroutineOwner;
+            _trackedCoroutines[c] = true;
         }
 
         return c;
     }
 
-    public void StopTrackedCoroutine(Coroutine coroutine)
+    public void StopTrackedCoroutine(Coroutine c)
     {
-        if (coroutine == null)
+        if (c == null)
         {
             return;
         }
 
-        if (coroutineOwners.TryGetValue(coroutine, out MonoBehaviour owner))
+        if (!_trackedCoroutines.ContainsKey(c))
         {
-            if (owner != null)
-            {
-                owner.StopCoroutine(coroutine);
-            }
-
-            coroutineOwners.Remove(coroutine);
+            return;
         }
+
+        StopCoroutine(c);
+        _trackedCoroutines.Remove(c);
     }
 
-    private IEnumerator JoinTimeoutRoutine(MonoBehaviour requester, float timeoutSeconds, System.Action onTimeout)
+    private void StopAllTrackedCoroutines()
     {
-        float elapsed = 0f;
-
-        while (elapsed < timeoutSeconds)
+        foreach (var kvp in _trackedCoroutines)
         {
-            if (NetworkManager.Singleton != null &&
-                NetworkManager.Singleton.IsConnectedClient)
+            if (kvp.Key != null)
+            {
+                StopCoroutine(kvp.Key);
+            }
+        }
+
+        _trackedCoroutines.Clear();
+    }
+
+    private IEnumerator JoinTimeoutRoutine(float seconds, Action onTimeout)
+    {
+        float end = Time.realtimeSinceStartup + seconds;
+        while (Time.realtimeSinceStartup < end)
+        {
+            if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsConnectedClient)
             {
                 yield break;
             }
 
-            elapsed += Time.unscaledDeltaTime;
             yield return null;
         }
 
-        // Only invoke if requester is still alive/active.
-        if (requester != null && requester.isActiveAndEnabled)
-        {
-            onTimeout?.Invoke();
-        }
+        onTimeout?.Invoke();
     }
 
-    private static CoroutineRunner GetOrCreateRunner()
+    private void HandleClientDisconnected(ulong clientId)
     {
-        if (runner != null)
+        if (NetworkManager.Singleton == null)
         {
-            return runner;
+            return;
         }
 
-        GameObject go = new GameObject("LanCoroutineRunner");
-        DontDestroyOnLoad(go);
-        runner = go.AddComponent<CoroutineRunner>();
-        return runner;
-    }
+        // Only react for local client.
+        if (clientId != NetworkManager.Singleton.LocalClientId)
+        {
+            return;
+        }
 
-    private sealed class CoroutineRunner : MonoBehaviour
-    {
-    }
+        // Store which LAN panel should be shown when returning to navigation.
+        PlayerPrefs.SetString(
+            "PanelManager.LastPanelName",
+            NetworkManager.Singleton.IsHost ? "LanHostPanel" : "LanJoinPanel"
+        );
 
-    private void OnApplicationQuit()
-    {
-        Shutdown();
+        if (SceneRouter.Instance != null)
+        {
+            SceneRouter.Instance.GoToNavigation(true);
+        }
     }
 }

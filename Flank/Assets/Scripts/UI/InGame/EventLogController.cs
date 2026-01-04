@@ -3,117 +3,94 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-public sealed class EventLogController : MonoBehaviour
+public abstract class EventLogController : MonoBehaviour
 {
-    [Header("Scene References")]
-    [SerializeField] private GameController _gameController;
-
     [Header("UI References")]
-    [SerializeField] private TMP_Text _logText;
-    [SerializeField] private ScrollRect _scrollRect;
-    [SerializeField] private RectTransform _contentRect;
+    [SerializeField] protected TMP_Text logText;
+    [SerializeField] protected ScrollRect scrollRect;
+    [SerializeField] protected RectTransform contentRect;
 
     [Header("Settings")]
-    [SerializeField] private int _maxLines = 300;
+    [SerializeField] protected int maxLines = 300;
 
     [Tooltip("Auto-scroll only if user is already near the bottom (0 = bottom, 1 = top).")]
     [Range(0.0f, 0.25f)]
-    [SerializeField] private float _autoScrollThreshold = 0.05f;
+    [SerializeField] protected float autoScrollThreshold = 0.05f;
 
-    private readonly StringBuilder _builder = new StringBuilder(8192);
+    protected readonly StringBuilder builder = new StringBuilder(8192);
 
-    private void OnEnable()
+    protected virtual void OnEnable()
     {
-        if (_gameController == null)
-        {
-            _gameController = FindFirstObjectByType<GameController>();
-        }
-
-        if (_gameController != null)
-        {
-            _gameController.LogAdded += HandleLogAdded;
-        }
-
-        // Ensure our content height is correct on enable (useful after scene reloads).
+        EnsureBound();
         RebuildLayout();
     }
 
-    private void OnDisable()
+    protected virtual void OnDisable()
     {
-        if (_gameController != null)
-        {
-            _gameController.LogAdded -= HandleLogAdded;
-        }
+        Unbind();
     }
 
-    private void HandleLogAdded(string message)
+    protected void Append(string message)
     {
         if (string.IsNullOrWhiteSpace(message))
         {
             return;
         }
 
-        if (_logText == null || _scrollRect == null || _contentRect == null)
+        if (logText == null || scrollRect == null || contentRect == null)
         {
             return;
         }
 
-        // 0 = bottom, 1 = top. If we're already near bottom, keep following new logs.
-        bool wasNearBottom = _scrollRect.verticalNormalizedPosition <= _autoScrollThreshold;
+        bool wasNearBottom = scrollRect.verticalNormalizedPosition <= autoScrollThreshold;
 
-        AppendLine(message);
-        _logText.text = _builder.ToString();
+        if (builder.Length > 0)
+        {
+            builder.Append('\n');
+        }
 
+        builder.Append(message);
+
+        TrimToMaxLines();
+
+        logText.text = builder.ToString();
         RebuildLayout();
 
         if (wasNearBottom)
         {
-            // Snap to bottom to show newest line.
-            _scrollRect.verticalNormalizedPosition = 0f;
+            scrollRect.verticalNormalizedPosition = 0f;
         }
-    }
-
-    private void AppendLine(string message)
-    {
-        if (_builder.Length > 0)
-        {
-            _builder.Append('\n');
-        }
-
-        _builder.Append(message);
-
-        TrimToMaxLines();
     }
 
     private void TrimToMaxLines()
     {
-        if (_maxLines <= 0)
+        if (maxLines <= 0)
         {
             return;
         }
 
         int lineCount = 1;
-        for (int i = 0; i < _builder.Length; i++)
+        for (int i = 0; i < builder.Length; i++)
         {
-            if (_builder[i] == '\n')
+            if (builder[i] == '\n')
             {
-                lineCount++;
+                lineCount += 1;
             }
         }
 
-        if (lineCount <= _maxLines)
+        if (lineCount <= maxLines)
         {
             return;
         }
 
-        int linesToRemove = lineCount - _maxLines;
+        int linesToRemove = lineCount - maxLines;
         int cutIndex = 0;
 
-        for (int i = 0; i < _builder.Length; i++)
+        for (int i = 0; i < builder.Length; i++)
         {
-            if (_builder[i] == '\n')
+            if (builder[i] == '\n')
             {
-                linesToRemove--;
+                linesToRemove -= 1;
                 if (linesToRemove <= 0)
                 {
                     cutIndex = i + 1;
@@ -124,36 +101,38 @@ public sealed class EventLogController : MonoBehaviour
 
         if (cutIndex > 0)
         {
-            _builder.Remove(0, cutIndex);
+            builder.Remove(0, cutIndex);
         }
     }
 
-    private void RebuildLayout()
+    protected void RebuildLayout()
     {
-        if (_contentRect == null)
+        if (contentRect == null)
         {
             return;
         }
 
-        LayoutRebuilder.ForceRebuildLayoutImmediate(_contentRect);
+        LayoutRebuilder.ForceRebuildLayoutImmediate(contentRect);
         Canvas.ForceUpdateCanvases();
     }
 
     public void Clear()
     {
-        _builder.Clear();
+        builder.Clear();
 
-        if (_logText != null)
+        if (logText != null)
         {
-            _logText.text = string.Empty;
+            logText.text = string.Empty;
         }
 
         RebuildLayout();
 
-        if (_scrollRect != null)
+        if (scrollRect != null)
         {
-            // After clearing, sit at the top.
-            _scrollRect.verticalNormalizedPosition = 1f;
+            scrollRect.verticalNormalizedPosition = 1f;
         }
     }
+
+    protected abstract void EnsureBound();
+    protected abstract void Unbind();
 }

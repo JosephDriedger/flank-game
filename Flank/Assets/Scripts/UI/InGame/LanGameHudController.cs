@@ -67,7 +67,12 @@ public sealed class LanGameHudController : MonoBehaviour
             return;
         }
 
-        if (!NetworkManager.Singleton.IsListening)
+        if (!(NetworkManager.Singleton.IsServer || NetworkManager.Singleton.IsConnectedClient))
+        {
+            return;
+        }
+
+        if (NetworkManager.Singleton.SceneManager == null)
         {
             return;
         }
@@ -80,6 +85,12 @@ public sealed class LanGameHudController : MonoBehaviour
     {
         if (!isSubscribed || NetworkManager.Singleton == null)
         {
+            return;
+        }
+
+        if (NetworkManager.Singleton.SceneManager == null)
+        {
+            isSubscribed = false;
             return;
         }
 
@@ -102,7 +113,7 @@ public sealed class LanGameHudController : MonoBehaviour
             return;
         }
 
-        lanGame = FindFirstObjectByType<LanGameController>();
+        lanGame = FindFirstObjectByType<LanGameController>(FindObjectsInactive.Include);
         if (lanGame == null)
         {
             return;
