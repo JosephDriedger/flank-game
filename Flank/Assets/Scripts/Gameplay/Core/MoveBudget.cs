@@ -12,52 +12,7 @@ public sealed class MoveBudget
 
     public bool CanUsePiece(GameState state, string pieceId)
     {
-        if (state == null)
-        {
-            return false;
-        }
-
-        if (!CanSpend(state))
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(pieceId))
-        {
-            return false;
-        }
-
-        if (state.currentTurn == Role.Attacker)
-        {
-            // If only one attacker piece is alive, attackers only get one move.
-            if (state.turnProgress.movesAllowed <= 1)
-            {
-                return true;
-            }
-
-            // First move: any attacker piece is fine.
-            if (state.turnProgress.movesUsed == 0)
-            {
-                return true;
-            }
-
-            // Second move: must be a different piece.
-            return pieceId != state.turnProgress.firstMovedPieceId;
-        }
-
-        if (state.currentTurn == Role.Defender)
-        {
-            // First move: any defender piece is fine.
-            if (state.turnProgress.movesUsed == 0)
-            {
-                return true;
-            }
-
-            // Second move: must be the same piece as the first.
-            return pieceId == state.turnProgress.firstMovedPieceId;
-        }
-
-        return true;
+        return TurnProgressGate.CanUsePieceForNextMove(state, pieceId);
     }
 
     public void Spend(GameState state, string pieceId, HexCoord fromBeforeMove)

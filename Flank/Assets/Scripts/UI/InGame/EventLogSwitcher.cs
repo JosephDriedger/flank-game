@@ -1,7 +1,7 @@
 using Unity.Netcode;
 using UnityEngine;
 
-public sealed class EventLogModeSwitcher : MonoBehaviour
+public sealed class EventLogSwitcher : MonoBehaviour
 {
     [Header("Controllers on this same GameObject")]
     [SerializeField] private OfflineEventLogController offlineController;

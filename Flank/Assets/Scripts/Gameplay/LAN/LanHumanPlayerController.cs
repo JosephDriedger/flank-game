@@ -79,6 +79,13 @@ public sealed class LanHumanPlayerController : MonoBehaviour
             return;
         }
 
+        // Cancel a pending move SFX if the server takes too long to confirm,
+        // preventing it from firing on a future unrelated state change.
+        if (_pendingMoveSfx && Time.unscaledTime > _pendingMoveSfxExpireAt)
+        {
+            _pendingMoveSfx = false;
+        }
+
         if (!_lan.IsLocalPlayersTurn())
         {
             return;

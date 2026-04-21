@@ -194,10 +194,16 @@ public sealed class LanNetworkService : MonoBehaviour
         }
 
         // Store which LAN panel should be shown when returning to navigation.
-        PlayerPrefs.SetString(
-            "PanelManager.LastPanelName",
-            NetworkManager.Singleton.IsHost ? "LanHostPanel" : "LanJoinPanel"
-        );
+        string panelName = NetworkManager.Singleton.IsHost ? "LanHostPanel" : "LanJoinPanel";
+        if (SaveSystem.Instance != null)
+        {
+            SaveSystem.Instance.SaveString("PanelManager.LastPanelName", panelName);
+        }
+        else
+        {
+            PlayerPrefs.SetString("PanelManager.LastPanelName", panelName);
+            PlayerPrefs.Save();
+        }
 
         if (SceneRouter.Instance != null)
         {

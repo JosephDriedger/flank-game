@@ -64,8 +64,6 @@ public sealed class GameController : MonoBehaviour
 
     private void Start()
     {
-        ConfigurePlayerControllers(_attackerControllerBehaviour, _defenderControllerBehaviour);
-
         _turnSystem = new TurnSystem(new TurnRules(), new MoveBudget());
         _rules = new RulesEngine();
 

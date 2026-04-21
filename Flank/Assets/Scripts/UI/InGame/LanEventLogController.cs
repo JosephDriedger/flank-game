@@ -5,13 +5,11 @@ public sealed class LanEventLogController : EventLogController
     [Header("Scene References")]
     [SerializeField] private LanGameController lanGameController;
 
-    private bool isBound;
-    private Role lastTurn;
-    private GameResult lastResult;
+    private bool _isBound;
 
     private void Update()
     {
-        if (!isBound)
+        if (!_isBound)
         {
             EnsureBound();
         }
@@ -19,7 +17,7 @@ public sealed class LanEventLogController : EventLogController
 
     protected override void EnsureBound()
     {
-        if (isBound)
+        if (_isBound)
         {
             return;
         }
@@ -34,56 +32,24 @@ public sealed class LanEventLogController : EventLogController
             return;
         }
 
-        lanGameController.StateChanged -= HandleStateChanged;
-        lanGameController.StateChanged += HandleStateChanged;
-
-        if (lanGameController.State != null)
-        {
-            lastTurn = lanGameController.State.currentTurn;
-            lastResult = lanGameController.State.result;
-            Append($"LAN match started. {TurnName(lastTurn)} begins.");
-        }
-
-        isBound = true;
+        lanGameController.LogAdded -= HandleLogAdded;
+        lanGameController.LogAdded += HandleLogAdded;
+        _isBound = true;
     }
 
     protected override void Unbind()
     {
         if (lanGameController != null)
         {
-            lanGameController.StateChanged -= HandleStateChanged;
+            lanGameController.LogAdded -= HandleLogAdded;
         }
 
-        isBound = false;
         lanGameController = null;
+        _isBound = false;
     }
 
-    private void HandleStateChanged(GameState state)
+    private void HandleLogAdded(string message)
     {
-        if (state == null)
-        {
-            return;
-        }
-
-        if (state.currentTurn != lastTurn)
-        {
-            lastTurn = state.currentTurn;
-            Append($"Turn changed: {TurnName(lastTurn)}.");
-        }
-
-        if (state.result != lastResult)
-        {
-            lastResult = state.result;
-
-            if (lastResult != GameResult.None)
-            {
-                Append($"Game Over: {lastResult}.");
-            }
-        }
-    }
-
-    private string TurnName(Role role)
-    {
-        return role == Role.Attacker ? "Attacker" : "Defender";
+        Append(message);
     }
 }

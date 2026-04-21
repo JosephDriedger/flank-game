@@ -42,8 +42,15 @@ public sealed class SceneRouter : MonoBehaviour
     {
         if (!openLastPanel)
         {
-            PlayerPrefs.DeleteKey(PanelManagerLastPanelKey);
-            PlayerPrefs.Save();
+            if (SaveSystem.Instance != null)
+            {
+                SaveSystem.Instance.DeleteKey(PanelManagerLastPanelKey);
+            }
+            else
+            {
+                PlayerPrefs.DeleteKey(PanelManagerLastPanelKey);
+                PlayerPrefs.Save();
+            }
         }
 
         if (sceneLoader != null)

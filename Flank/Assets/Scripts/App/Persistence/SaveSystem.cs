@@ -27,6 +27,12 @@ public sealed class SaveSystem : MonoBehaviour
         return PlayerPrefs.GetString(key, fallback);
     }
 
+    public void DeleteKey(string key)
+    {
+        PlayerPrefs.DeleteKey(key);
+        PlayerPrefs.Save();
+    }
+
     public void ClearAll()
     {
         PlayerPrefs.DeleteAll();

@@ -148,19 +148,28 @@ public sealed class LanGameHudController : MonoBehaviour
 
     private void HandleStateChanged(GameState state)
     {
+        if (state == null)
+        {
+            return;
+        }
+
         if (!initialized)
         {
             CacheInitialCounts(state);
             initialized = true;
         }
 
-        turnText.text = state.currentTurn == Role.Attacker
-            ? "Attacker Turn"
-            : "Defender Turn";
+        if (turnText != null)
+        {
+            turnText.text = state.currentTurn == Role.Attacker ? "Attacker Turn" : "Defender Turn";
+        }
 
-        int used = state.turnProgress != null ? state.turnProgress.movesUsed : 0;
-        int allowed = state.turnProgress != null ? state.turnProgress.movesAllowed : 0;
-        movesText.text = $"Moves: {used} / {allowed}";
+        if (movesText != null)
+        {
+            int used = state.turnProgress != null ? state.turnProgress.movesUsed : 0;
+            int allowed = state.turnProgress != null ? state.turnProgress.movesAllowed : 0;
+            movesText.text = $"Moves: {used} / {allowed}";
+        }
 
         UpdateCounts(state);
         UpdateEndTurnButton(state);
@@ -184,27 +193,33 @@ public sealed class LanGameHudController : MonoBehaviour
 
     private void UpdateCounts(GameState state)
     {
-        int flagsAlive = 0;
-        foreach (FlagModel f in state.flags.Values)
+        if (flagsText != null)
         {
-            if (!f.isCaptured)
+            int flagsAlive = 0;
+            foreach (FlagModel f in state.flags.Values)
             {
-                flagsAlive++;
+                if (f != null && !f.isCaptured)
+                {
+                    flagsAlive++;
+                }
             }
+
+            flagsText.text = $"{flagsAlive} / {initialFlags}";
         }
 
-        flagsText.text = $"{flagsAlive} / {initialFlags}";
-
-        int attackersAlive = 0;
-        foreach (PieceModel p in state.pieces.Values)
+        if (attackersText != null)
         {
-            if (p.role == Role.Attacker && !p.isCaptured)
+            int attackersAlive = 0;
+            foreach (PieceModel p in state.pieces.Values)
             {
-                attackersAlive++;
+                if (p != null && p.role == Role.Attacker && !p.isCaptured)
+                {
+                    attackersAlive++;
+                }
             }
-        }
 
-        attackersText.text = $"{attackersAlive} / {initialAttackers}";
+            attackersText.text = $"{attackersAlive} / {initialAttackers}";
+        }
     }
 
     private void UpdateEndTurnButton(GameState state)

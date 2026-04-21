@@ -24,16 +24,38 @@ public sealed class PostGameController : MonoBehaviour
         ApplyWinner();
         ApplyStats();
 
-        playAgainButton.onClick.AddListener(HandlePlayAgain);
-        viewBoardButton.onClick.AddListener(HandleViewBoard);
-        exitGameButton.onClick.AddListener(HandleExit);
+        if (playAgainButton != null)
+        {
+            playAgainButton.onClick.AddListener(HandlePlayAgain);
+        }
+
+        if (viewBoardButton != null)
+        {
+            viewBoardButton.onClick.AddListener(HandleViewBoard);
+        }
+
+        if (exitGameButton != null)
+        {
+            exitGameButton.onClick.AddListener(HandleExit);
+        }
     }
 
     private void OnDisable()
     {
-        playAgainButton.onClick.RemoveListener(HandlePlayAgain);
-        viewBoardButton.onClick.RemoveListener(HandleViewBoard);
-        exitGameButton.onClick.RemoveListener(HandleExit);
+        if (playAgainButton != null)
+        {
+            playAgainButton.onClick.RemoveListener(HandlePlayAgain);
+        }
+
+        if (viewBoardButton != null)
+        {
+            viewBoardButton.onClick.RemoveListener(HandleViewBoard);
+        }
+
+        if (exitGameButton != null)
+        {
+            exitGameButton.onClick.RemoveListener(HandleExit);
+        }
     }
 
     private void HandlePlayAgain()
@@ -76,12 +98,7 @@ public sealed class PostGameController : MonoBehaviour
     private void RestoreLastPlayedSettingsIfAvailable()
     {
         string json = LoadString(PostGameKeys.LastPlayedSettingsJson, string.Empty);
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            return;
-        }
-
-        if (GameSettingsManager.Instance == null)
+        if (string.IsNullOrWhiteSpace(json) || GameSettingsManager.Instance == null)
         {
             return;
         }
@@ -91,21 +108,25 @@ public sealed class PostGameController : MonoBehaviour
 
     private void ApplyWinner()
     {
+        if (winText == null)
+        {
+            return;
+        }
+
         string result = LoadString(PostGameKeys.LastGameResult, string.Empty);
 
         if (result == GameResult.AttackersWin.ToString())
         {
             winText.text = "Attackers Win";
-            return;
         }
-
-        if (result == GameResult.DefendersWin.ToString())
+        else if (result == GameResult.DefendersWin.ToString())
         {
             winText.text = "Defenders Win";
-            return;
         }
-
-        winText.text = "Game Over";
+        else
+        {
+            winText.text = "Game Over";
+        }
     }
 
     private void ApplyStats()
@@ -114,9 +135,20 @@ public sealed class PostGameController : MonoBehaviour
         int flagsRemaining = LoadInt(PostGameKeys.FlagsRemaining, 0);
         int attackersRemaining = LoadInt(PostGameKeys.AttackersRemaining, 0);
 
-        turnsText.text = $"Turns: {turns}";
-        flagsRemainingText.text = $"Flags Remaining: {flagsRemaining}";
-        attackersRemainingText.text = $"Attackers Remaining: {attackersRemaining}";
+        if (turnsText != null)
+        {
+            turnsText.text = $"Turns: {turns}";
+        }
+
+        if (flagsRemainingText != null)
+        {
+            flagsRemainingText.text = $"Flags Remaining: {flagsRemaining}";
+        }
+
+        if (attackersRemainingText != null)
+        {
+            attackersRemainingText.text = $"Attackers Remaining: {attackersRemaining}";
+        }
     }
 
     private string LoadString(string key, string fallback)

@@ -19,6 +19,8 @@ public sealed class LanGameController : NetworkBehaviour
     private TurnSystem _turnSystem;
     private RulesEngine _rules;
 
+    private bool _boardViewBuilt;
+
     private readonly NetworkVariable<FixedString4096Bytes> _snapshotJson =
         new NetworkVariable<FixedString4096Bytes>(
             new FixedString4096Bytes(),
@@ -26,6 +28,7 @@ public sealed class LanGameController : NetworkBehaviour
             NetworkVariableWritePermission.Server);
 
     public event Action<GameState> StateChanged;
+    public event Action<string> LogAdded;
 
     public GameState State
     {
@@ -127,6 +130,24 @@ public sealed class LanGameController : NetworkBehaviour
         RequestMoveServerRpc(pieceId, destination.q, destination.r);
     }
 
+    // Fires on the server immediately and replicates the message to all clients.
+    private void AddLog(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return;
+        }
+
+        LogAdded?.Invoke(message);
+        BroadcastLogClientRpc(new FixedString128Bytes(message));
+    }
+
+    [Rpc(SendTo.NotServer)]
+    private void BroadcastLogClientRpc(FixedString128Bytes message)
+    {
+        LogAdded?.Invoke(message.ToString());
+    }
+
     private void NewGameServer()
     {
         _board = new BoardModel();
@@ -162,6 +183,8 @@ public sealed class LanGameController : NetworkBehaviour
 
         _turnSystem.BeginTurn(_state, Role.Attacker);
 
+        AddLog("New game started.");
+        AddLog("Attacker turn started.");
         PublishSnapshotServer();
     }
 
@@ -225,6 +248,7 @@ public sealed class LanGameController : NetworkBehaviour
             return;
         }
 
+        AddLog("Defender ended turn early.");
         BeginTurnServer(_turnSystem.NextRole(_state.currentTurn));
     }
 
@@ -257,6 +281,14 @@ public sealed class LanGameController : NetworkBehaviour
         _turnSystem.SpendAction(_state, action.pieceId, fromBeforeMove);
         _state.result = _rules.GetGameResult(_state);
 
+        string roleName = _state.currentTurn == Role.Attacker ? "Attacker" : "Defender";
+        AddLog($"{roleName} moved {action.pieceId}.");
+
+        if (_state.result != GameResult.None)
+        {
+            AddLog($"Game over: {_state.result}.");
+        }
+
         PublishSnapshotServer();
 
         if (_state.result != GameResult.None)
@@ -288,6 +320,12 @@ public sealed class LanGameController : NetworkBehaviour
             safety += 1;
         }
 
+        if (_state.result == GameResult.None)
+        {
+            string turnName = _state.currentTurn == Role.Attacker ? "Attacker" : "Defender";
+            AddLog($"{turnName} turn started.");
+        }
+
         PublishSnapshotServer();
     }
 
@@ -295,6 +333,12 @@ public sealed class LanGameController : NetworkBehaviour
     {
         GameStateSnapshot snap = BuildSnapshot(_state);
         string json = JsonUtility.ToJson(snap);
+
+        if (json.Length > 4000)
+        {
+            Debug.LogWarning($"[LAN] Snapshot JSON is {json.Length} chars — approaching the 4096-byte NGO limit.");
+        }
+
         _snapshotJson.Value = new FixedString4096Bytes(json);
     }
 
@@ -422,7 +466,12 @@ public sealed class LanGameController : NetworkBehaviour
 
         if (_boardView != null)
         {
-            _boardView.Build(_board);
+            if (!_boardViewBuilt)
+            {
+                _boardView.Build(_board);
+                _boardViewBuilt = true;
+            }
+
             _boardView.SyncPieces(_state);
             _boardView.ClearHighlights();
         }
