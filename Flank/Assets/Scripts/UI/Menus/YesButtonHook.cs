@@ -31,7 +31,17 @@ public sealed class YesButtonHook : MonoBehaviour
 
     private void OnYesClicked()
     {
-        // Call your persistence singleton here.
-        SceneRouter.Instance.GoToNavigation(openLastPanel: true);
+        // FIX: If we are in a LAN match, shut down the network cleanly first.
+        // This prevents NGO callbacks firing during scene transitions.
+        if (LanNetworkService.Instance != null)
+        {
+            LanNetworkService.Instance.Shutdown();
+        }
+
+        // Then route back to Navigation and open last panel.
+        if (SceneRouter.Instance != null)
+        {
+            SceneRouter.Instance.GoToNavigation(openLastPanel: true);
+        }
     }
 }

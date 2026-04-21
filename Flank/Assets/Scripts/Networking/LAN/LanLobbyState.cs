@@ -9,7 +9,9 @@ public sealed class LanLobbyState : NetworkBehaviour
 
     public event Action OnLobbyChanged;
 
-    public NetworkList<LobbyPlayerData> Players { get; private set; }
+    // FIX: Initialize inline so NGO never sees this as null.
+    // Also remove "private set" so it cannot be reassigned to null.
+    public NetworkList<LobbyPlayerData> Players { get; } = new NetworkList<LobbyPlayerData>();
 
     private void Awake()
     {
@@ -21,8 +23,6 @@ public sealed class LanLobbyState : NetworkBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
-
-        Players = new NetworkList<LobbyPlayerData>();
     }
 
     public override void OnNetworkSpawn()
@@ -47,10 +47,7 @@ public sealed class LanLobbyState : NetworkBehaviour
     {
         base.OnNetworkDespawn();
 
-        if (Players != null)
-        {
-            Players.OnListChanged -= HandlePlayersChanged;
-        }
+        Players.OnListChanged -= HandlePlayersChanged;
 
         if (NetworkManager.Singleton != null && IsServer)
         {
@@ -77,11 +74,6 @@ public sealed class LanLobbyState : NetworkBehaviour
     {
         role = Role.Attacker;
 
-        if (Players == null)
-        {
-            return false;
-        }
-
         for (int i = 0; i < Players.Count; i++)
         {
             if (Players[i].ClientId == clientId)
@@ -102,10 +94,7 @@ public sealed class LanLobbyState : NetworkBehaviour
             return role;
         }
 
-        // IMPORTANT:
-        // Do not guess roles here. If the role is not present yet, it means the list
-        // has not replicated or the player entry does not exist. Callers should use
-        // TryGetRoleForClientId and treat "false" as "not ready yet".
+        // Do not guess roles if not present yet.
         return Role.Attacker;
     }
 
@@ -115,8 +104,7 @@ public sealed class LanLobbyState : NetworkBehaviour
 
     public bool AreAllPlayersReady()
     {
-        return Players != null &&
-               Players.Count == 2 &&
+        return Players.Count == 2 &&
                Players[0].IsReady &&
                Players[1].IsReady;
     }

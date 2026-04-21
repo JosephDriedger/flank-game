@@ -10,6 +10,11 @@ public sealed class HumanPlayerController : MonoBehaviour, IPlayerController
     [SerializeField] private BoardView _boardView;
     [SerializeField] private GameController _game;
 
+    [Header("SFX")]
+    [SerializeField] private AudioClip _moveSfx;
+    [SerializeField] private float _movePitchMin = 0.9f;
+    [SerializeField] private float _movePitchMax = 1.1f;
+
     private GameState _state;
     private BoardModel _board;
 
@@ -158,17 +163,18 @@ public sealed class HumanPlayerController : MonoBehaviour, IPlayerController
             return;
         }
 
-        int movesBefore = _state.turnProgress.movesUsed;
-
-        _game.TryApplyAction(new PlayerAction(_selectedPieceId, clicked));
-
-        int movesAfter = _state.turnProgress.movesUsed;
+        bool didMove = _game.TryApplyAction(new PlayerAction(_selectedPieceId, clicked));
 
         // --------------------------------------------------------
         // AFTER MOVE APPLIED
         // --------------------------------------------------------
-        if (movesAfter > movesBefore)
+        if (didMove)
         {
+            if (_moveSfx != null && AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlaySFXRandomPitch(_moveSfx, _movePitchMin, _movePitchMax);
+            }
+
             // Attackers: moved piece is done, deselect and show remaining.
             if (_state.currentTurn == Role.Attacker)
             {

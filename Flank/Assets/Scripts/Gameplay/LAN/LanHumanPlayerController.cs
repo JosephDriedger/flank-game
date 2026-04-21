@@ -9,11 +9,21 @@ public sealed class LanHumanPlayerController : MonoBehaviour
     [SerializeField] private LayerMask _boardMask;
     [SerializeField] private BoardView _boardView;
 
+    [Header("SFX")]
+    [SerializeField] private AudioClip _moveSfx;
+    [SerializeField] private float _movePitchMin = 0.9f;
+    [SerializeField] private float _movePitchMax = 1.1f;
+
     private LanGameController _lan;
 
     private readonly MovementRules _movement = new MovementRules();
 
     private string _selectedPieceId;
+    private string _lastMovedPieceId;
+
+    private bool _pendingMoveSfx;
+    private float _pendingMoveSfxExpireAt;
+    private readonly Dictionary<string, HexCoord> _lastPositions = new Dictionary<string, HexCoord>();
 
     private void Awake()
     {
@@ -33,10 +43,27 @@ public sealed class LanHumanPlayerController : MonoBehaviour
     private void OnEnable()
     {
         _selectedPieceId = null;
+        _lastMovedPieceId = null;
 
         if (_boardView != null)
         {
             _boardView.ClearHighlights();
+        }
+
+        _pendingMoveSfx = false;
+        _pendingMoveSfxExpireAt = 0f;
+
+        if (_lan == null)
+        {
+            _lan = FindAnyObjectByType<LanGameController>(FindObjectsInactive.Include);
+        }
+
+        if (_lan != null)
+        {
+            _lan.StateChanged -= HandleStateChanged;
+            _lan.StateChanged += HandleStateChanged;
+            CachePositions(_lan.State);
+            HighlightEligiblePieces();
         }
     }
 
@@ -52,7 +79,6 @@ public sealed class LanHumanPlayerController : MonoBehaviour
             return;
         }
 
-        // Only allow input when it is YOUR turn.
         if (!_lan.IsLocalPlayersTurn())
         {
             return;
@@ -130,7 +156,6 @@ public sealed class LanHumanPlayerController : MonoBehaviour
                 return;
             }
 
-            // Enforce the same per-turn piece gating as the server (prevents selecting a piece that cannot be moved).
             if (!TurnProgressGate.CanUsePieceForNextMove(state, p.id))
             {
                 return;
@@ -175,14 +200,18 @@ public sealed class LanHumanPlayerController : MonoBehaviour
             return;
         }
 
-        // Re-check budget gate before sending RPC (state may have changed since selection).
         if (!TurnProgressGate.CanUsePieceForNextMove(state, _selectedPieceId))
         {
             Deselect();
             return;
         }
 
+        _lastMovedPieceId = _selectedPieceId;
         _lan.RequestMove(_selectedPieceId, clicked);
+
+        _pendingMoveSfx = (_moveSfx != null && AudioManager.Instance != null);
+        _pendingMoveSfxExpireAt = Time.unscaledTime + 0.75f;
+
         Deselect();
     }
 
@@ -207,5 +236,135 @@ public sealed class LanHumanPlayerController : MonoBehaviour
         {
             _boardView.ClearHighlights();
         }
+
+        HighlightEligiblePieces();
+    }
+
+    private void HighlightEligiblePieces()
+    {
+        if (_boardView == null || _lan == null || !_lan.IsLocalPlayersTurn())
+        {
+            return;
+        }
+
+        GameState state = _lan.State;
+        if (state == null || state.pieces == null)
+        {
+            return;
+        }
+
+        List<HexCoord> coords = new List<HexCoord>();
+
+        foreach (PieceModel p in state.pieces.Values)
+        {
+            if (p == null || p.isCaptured || p.role != state.currentTurn)
+            {
+                continue;
+            }
+
+            if (!TurnProgressGate.CanUsePieceForNextMove(state, p.id))
+            {
+                continue;
+            }
+
+            coords.Add(p.position);
+        }
+
+        _boardView.ShowHighlights(coords);
+    }
+
+    private void OnDisable()
+    {
+        if (_lan != null)
+        {
+            _lan.StateChanged -= HandleStateChanged;
+        }
+    }
+
+    private void HandleStateChanged(GameState state)
+    {
+        bool anyPieceMoved = DidAnyPieceMove(state);
+        CachePositions(state);
+
+        if (_pendingMoveSfx && anyPieceMoved && _moveSfx != null && AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlaySFXRandomPitch(_moveSfx, _movePitchMin, _movePitchMax);
+            _pendingMoveSfx = false;
+        }
+
+        // Not our turn: clear any selection and highlights.
+        if (_lan == null || !_lan.IsLocalPlayersTurn())
+        {
+            _selectedPieceId = null;
+            _lastMovedPieceId = null;
+            if (_boardView != null)
+            {
+                _boardView.ClearHighlights();
+            }
+            return;
+        }
+
+        // Defender auto-reselect: if we just moved a piece and it can still move, reselect it.
+        if (!string.IsNullOrWhiteSpace(_lastMovedPieceId) &&
+            state != null && state.currentTurn == Role.Defender &&
+            _lan.Board != null)
+        {
+            PieceModel justMoved = state.GetPiece(_lastMovedPieceId);
+            if (justMoved != null && !justMoved.isCaptured &&
+                TurnProgressGate.CanUsePieceForNextMove(state, _lastMovedPieceId))
+            {
+                _lastMovedPieceId = null;
+                SelectPiece(justMoved, state, _lan.Board);
+                return;
+            }
+        }
+
+        _lastMovedPieceId = null;
+        HighlightEligiblePieces();
+    }
+
+    private void CachePositions(GameState state)
+    {
+        _lastPositions.Clear();
+
+        if (state == null || state.pieces == null)
+        {
+            return;
+        }
+
+        foreach (KeyValuePair<string, PieceModel> kvp in state.pieces)
+        {
+            PieceModel p = kvp.Value;
+            if (p == null)
+            {
+                continue;
+            }
+
+            _lastPositions[kvp.Key] = p.position;
+        }
+    }
+
+    private bool DidAnyPieceMove(GameState state)
+    {
+        if (state == null || state.pieces == null)
+        {
+            return false;
+        }
+
+        foreach (KeyValuePair<string, PieceModel> kvp in state.pieces)
+        {
+            PieceModel p = kvp.Value;
+            if (p == null)
+            {
+                continue;
+            }
+
+            if (_lastPositions.TryGetValue(kvp.Key, out HexCoord oldPos) && !oldPos.Equals(p.position))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

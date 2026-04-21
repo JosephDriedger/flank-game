@@ -180,26 +180,26 @@ public sealed class GameController : MonoBehaviour
         RaiseStateChanged();
     }
 
-    public void TryApplyAction(PlayerAction action)
+    public bool TryApplyAction(PlayerAction action)
     {
         if (action == null)
         {
-            return;
+            return false;
         }
 
         if (_state == null || _board == null)
         {
-            return;
+            return false;
         }
 
         if (!_turnSystem.CanAct(_state))
         {
-            return;
+            return false;
         }
 
         if (!_turnSystem.CanUsePiece(_state, action.pieceId))
         {
-            return;
+            return false;
         }
 
         PieceModel movingPiece = _state.GetPiece(action.pieceId);
@@ -208,7 +208,7 @@ public sealed class GameController : MonoBehaviour
         bool applied = _rules.TryApplyAction(action, _state, _board);
         if (!applied)
         {
-            return;
+            return false;
         }
 
         _turnSystem.SpendAction(_state, action.pieceId, fromBeforeMove);
@@ -231,15 +231,16 @@ public sealed class GameController : MonoBehaviour
             AddLog($"Game Over: {_state.result}");
             Debug.Log($"Game Over: {_state.result}");
             CurrentController?.EndTurn();
-            return;
+            return true;
         }
 
         if (_turnSystem.CanAct(_state))
         {
-            return;
+            return true;
         }
 
         BeginTurn(_turnSystem.NextRole(_state.currentTurn));
+        return true;
     }
 
     public bool CanCurrentTurnContinue()

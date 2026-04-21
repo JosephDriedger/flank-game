@@ -6,7 +6,11 @@ public sealed class AudioManager : MonoBehaviour
 
     [SerializeField] private AudioSource musicSource;
 
+    [Header("Sound Effects")]
+    [SerializeField] private AudioSource sfxSource;
+
     private float musicVolume = 1.0f;
+    private float sfxVolume = 1.0f;
 
     private void Awake()
     {
@@ -18,6 +22,21 @@ public sealed class AudioManager : MonoBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
+
+        ApplyVolumes();
+    }
+
+    private void ApplyVolumes()
+    {
+        if (musicSource != null)
+        {
+            musicSource.volume = musicVolume;
+        }
+
+        if (sfxSource != null)
+        {
+            sfxSource.volume = sfxVolume;
+        }
     }
 
     public void SetMusicVolume(float value)
@@ -28,5 +47,40 @@ public sealed class AudioManager : MonoBehaviour
         {
             musicSource.volume = musicVolume;
         }
+    }
+
+    public void SetSFXVolume(float value)
+    {
+        sfxVolume = Mathf.Clamp01(value);
+
+        if (sfxSource != null)
+        {
+            sfxSource.volume = sfxVolume;
+        }
+    }
+
+    public void PlaySFX(AudioClip clip)
+    {
+        if (sfxSource == null || clip == null)
+        {
+            return;
+        }
+
+        sfxSource.PlayOneShot(clip, sfxVolume);
+    }
+
+    public void PlaySFXRandomPitch(AudioClip clip, float minPitch = 0.9f, float maxPitch = 1.1f)
+    {
+        if (sfxSource == null || clip == null)
+        {
+            return;
+        }
+
+        float originalPitch = sfxSource.pitch;
+        sfxSource.pitch = Random.Range(minPitch, maxPitch);
+
+        sfxSource.PlayOneShot(clip, sfxVolume);
+
+        sfxSource.pitch = originalPitch;
     }
 }

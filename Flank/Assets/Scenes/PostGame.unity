@@ -131,6 +131,7 @@ GameObject:
   - component: {fileID: 66490746}
   - component: {fileID: 66490745}
   - component: {fileID: 66490744}
+  - component: {fileID: 66490747}
   m_Layer: 5
   m_Name: ExitGameButton
   m_TagString: Untagged
@@ -240,6 +241,21 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 66490742}
   m_CullTransparentMesh: 1
+--- !u!114 &66490747
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 66490742}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bb9bb6deb18a403468a579ac6d195b8f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UIButtonSfx
+  clickSfx: {fileID: 8300000, guid: a7ecba3ab3500c24f8e81a36eb875c7a, type: 3}
+  pitchMin: 0.95
+  pitchMax: 1.05
 --- !u!1 &249456677
 GameObject:
   m_ObjectHideFlags: 0
@@ -389,6 +405,7 @@ GameObject:
   - component: {fileID: 600461968}
   - component: {fileID: 600461967}
   - component: {fileID: 600461966}
+  - component: {fileID: 600461969}
   m_Layer: 5
   m_Name: PlayAgainButton
   m_TagString: Untagged
@@ -498,6 +515,21 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 600461964}
   m_CullTransparentMesh: 1
+--- !u!114 &600461969
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 600461964}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bb9bb6deb18a403468a579ac6d195b8f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UIButtonSfx
+  clickSfx: {fileID: 8300000, guid: a7ecba3ab3500c24f8e81a36eb875c7a, type: 3}
+  pitchMin: 0.95
+  pitchMax: 1.05
 --- !u!1 &876822359
 GameObject:
   m_ObjectHideFlags: 0
@@ -647,6 +679,7 @@ GameObject:
   - component: {fileID: 910867858}
   - component: {fileID: 910867857}
   - component: {fileID: 910867856}
+  - component: {fileID: 910867859}
   m_Layer: 5
   m_Name: ViewBoardButton
   m_TagString: Untagged
@@ -756,6 +789,21 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 910867854}
   m_CullTransparentMesh: 1
+--- !u!114 &910867859
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 910867854}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bb9bb6deb18a403468a579ac6d195b8f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UIButtonSfx
+  clickSfx: {fileID: 8300000, guid: a7ecba3ab3500c24f8e81a36eb875c7a, type: 3}
+  pitchMin: 0.95
+  pitchMax: 1.05
 --- !u!1 &929312354
 GameObject:
   m_ObjectHideFlags: 0
