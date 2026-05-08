@@ -193,8 +193,16 @@ public sealed class LanNetworkService : MonoBehaviour
             return;
         }
 
-        // Store which LAN panel should be shown when returning to navigation.
-        string panelName = NetworkManager.Singleton.IsHost ? "LanHostPanel" : "LanJoinPanel";
+        // Store which panel should be shown when returning to navigation.
+        bool isOnline = GameSettingsManager.Instance != null &&
+                        GameSettingsManager.Instance.Current != null &&
+                        GameSettingsManager.Instance.Current.mode == GameMode.OnlineMatchmaking;
+
+        string panelName;
+        if (isOnline)
+            panelName = NetworkManager.Singleton.IsHost ? "OnlineHostPanel" : "OnlineBrowsePanel";
+        else
+            panelName = NetworkManager.Singleton.IsHost ? "LanHostPanel" : "LanJoinPanel";
         if (SaveSystem.Instance != null)
         {
             SaveSystem.Instance.SaveString("PanelManager.LastPanelName", panelName);

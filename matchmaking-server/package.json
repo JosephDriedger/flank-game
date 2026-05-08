@@ -1,0 +1,12 @@
+{
+  "name": "flank-matchmaking-server",
+  "version": "1.0.0",
+  "description": "Free matchmaking server for Flank — no dependencies, deploy on Render/Railway/Fly.io",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
