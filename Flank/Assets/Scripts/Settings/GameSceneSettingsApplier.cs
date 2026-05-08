@@ -40,6 +40,8 @@ public sealed class GameSceneSettingsApplier : MonoBehaviour
 
         ApplyAiDifficultyIfNeeded(settings.attacker, _attackerAiController);
         ApplyAiDifficultyIfNeeded(settings.defender, _defenderAiController);
+
+        _gameController.SetTimeLimit((int)settings.timeLimit * 60);
     }
 
     private static MonoBehaviour PickController(PlayerConfig cfg, MonoBehaviour human, AIPlayerController ai)

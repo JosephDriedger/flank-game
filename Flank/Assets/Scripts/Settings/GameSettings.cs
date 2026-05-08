@@ -31,9 +31,11 @@ public enum Difficulty
 public enum TimeLimitOption
 {
     Unlimited = 0,
+    ThreeMinutes = 3,
     FiveMinutes = 5,
     TenMinutes = 10,
-    FifteenMinutes = 15
+    FifteenMinutes = 15,
+    TwentyMinutes = 20
 }
 
 [Serializable]

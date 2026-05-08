@@ -2,8 +2,8 @@ using System.Collections.Generic;
 
 public sealed class GameState
 {
-    public readonly Dictionary<string, PieceModel> pieces = new Dictionary<string, PieceModel>();
-    public readonly Dictionary<string, FlagModel> flags = new Dictionary<string, FlagModel>();
+    public readonly Dictionary<string, PieceModel> pieces = new Dictionary<string, PieceModel>(12);
+    public readonly Dictionary<string, FlagModel> flags = new Dictionary<string, FlagModel>(2);
 
     public Role currentTurn;
     public GameResult result;

@@ -43,6 +43,14 @@ public sealed class MinimaxBrain : MonoBehaviour, IAIBrain
 
     private int _nodes;
 
+    // Shared direction array — avoids re-declaring per method and keeps it out of BoardModel.
+    private static readonly HexCoord[] _dirs = new HexCoord[]
+    {
+        new HexCoord(+1,  0), new HexCoord(-1,  0),
+        new HexCoord( 0, +1), new HexCoord( 0, -1),
+        new HexCoord(+1, -1), new HexCoord(-1, +1),
+    };
+
     public PlayerAction ChooseAction(List<PlayerAction> legal, GameState state, BoardModel board)
     {
         if (legal == null || legal.Count == 0 || state == null || board == null)
@@ -320,13 +328,13 @@ public sealed class MinimaxBrain : MonoBehaviour, IAIBrain
                 continue;
             }
 
-            if (!string.IsNullOrWhiteSpace(a.carryingFlagId))
+            if (!string.IsNullOrEmpty(a.carryingFlagId))
             {
                 score += (perspective == Role.Attacker ? +1 : -1) * _carryingFlagBonus;
                 int distToReturn = HexDistance(a.position, returnHex);
                 score += (perspective == Role.Attacker ? +1 : -1) * (_carryToReturnStepBonus * (12 - Mathf.Clamp(distToReturn, 0, 12)));
 
-                if (IsAnyDefenderAdjacent(a.position, defenders, board))
+                if (IsAnyDefenderAdjacent(a.position, defenders))
                 {
                     score += (perspective == Role.Attacker ? -1 : +1) * _carrierAdjDefenderPenalty;
                 }
@@ -369,7 +377,7 @@ public sealed class MinimaxBrain : MonoBehaviour, IAIBrain
                 continue;
             }
 
-            int adjacent = CountAdjacentAttackers(d.position, attackers, board);
+            int adjacent = CountAdjacentAttackers(d.position, attackers);
             if (adjacent > 0)
             {
                 int press = adjacent * _defenderPressureBonus;
@@ -452,36 +460,86 @@ public sealed class MinimaxBrain : MonoBehaviour, IAIBrain
     }
 
     // ============================================================
-    // Move ordering
+    // Move ordering  (clone-free — uses a positional heuristic)
     // ============================================================
 
     private void OrderMovesBestFirst(List<PlayerAction> moves, GameState state, BoardModel board, Role rootRole)
     {
-        // Score each move with a quick 1-ply evaluation; sort descending for max player, ascending for min player.
         bool maximizing = state.currentTurn == rootRole;
 
         moves.Sort((a, b) =>
         {
-            int sa = QuickMoveScore(a, state, board, rootRole);
-            int sb = QuickMoveScore(b, state, board, rootRole);
+            int sa = CloneFreeMoveScore(a, state, board, rootRole);
+            int sb = CloneFreeMoveScore(b, state, board, rootRole);
             return maximizing ? sb.CompareTo(sa) : sa.CompareTo(sb);
         });
     }
 
-    private int QuickMoveScore(PlayerAction action, GameState state, BoardModel board, Role rootRole)
+    // Scores a move purely from positional data — no clone, no simulation.
+    // Used only for ordering; the full minimax tree handles accuracy.
+    private int CloneFreeMoveScore(PlayerAction action, GameState state, BoardModel board, Role rootRole)
     {
         if (action == null || state == null || board == null)
         {
             return 0;
         }
 
-        (GameState s2, BoardModel b2) = Clone(state, board);
-        if (!SimApplyOneAction(action, s2, b2))
+        PieceModel piece = state.GetPiece(action.pieceId);
+        if (piece == null)
         {
-            return int.MinValue / 4;
+            return 0;
         }
 
-        return EvaluatePosition(s2, b2, rootRole);
+        int score = 0;
+
+        if (piece.role == Role.Attacker)
+        {
+            if (!string.IsNullOrEmpty(piece.carryingFlagId))
+            {
+                HexCoord ret = FindReturnHex(board);
+                score += (HexDistance(piece.position, ret) - HexDistance(action.destination, ret)) * 1000;
+            }
+            else
+            {
+                int bestGain = 0;
+                foreach (FlagModel f in state.flags.Values)
+                {
+                    if (f == null || f.isCaptured)
+                    {
+                        continue;
+                    }
+
+                    HexCoord? loc = GetFlagLocation(f, state);
+                    if (!loc.HasValue)
+                    {
+                        continue;
+                    }
+
+                    int gain = HexDistance(piece.position, loc.Value) - HexDistance(action.destination, loc.Value);
+                    if (gain > bestGain)
+                    {
+                        bestGain = gain;
+                    }
+                }
+
+                score += bestGain * 500;
+            }
+        }
+        else
+        {
+            foreach (PieceModel p in state.pieces.Values)
+            {
+                if (p == null || p.isCaptured || p.role != Role.Attacker)
+                {
+                    continue;
+                }
+
+                int dist = HexDistance(action.destination, p.position);
+                score += (6 - Mathf.Clamp(dist, 0, 6)) * (string.IsNullOrEmpty(p.carryingFlagId) ? 100 : 600);
+            }
+        }
+
+        return piece.role == rootRole ? score : -score;
     }
 
     private static void ShuffleInPlace<T>(List<T> list)
@@ -568,7 +626,7 @@ public sealed class MinimaxBrain : MonoBehaviour, IAIBrain
             return null;
         }
 
-        if (!string.IsNullOrWhiteSpace(flag.carrierPieceId))
+        if (!string.IsNullOrEmpty(flag.carrierPieceId))
         {
             PieceModel carrier = state.GetPiece(flag.carrierPieceId);
             if (carrier != null)
@@ -580,12 +638,12 @@ public sealed class MinimaxBrain : MonoBehaviour, IAIBrain
         return flag.location;
     }
 
-    private static bool IsAnyDefenderAdjacent(HexCoord pos, List<PieceModel> defenders, BoardModel board)
+    private static bool IsAnyDefenderAdjacent(HexCoord pos, List<PieceModel> defenders)
     {
-        List<HexCoord> neighbors = board.GetNeighbors(pos);
-        for (int i = 0; i < neighbors.Count; i++)
+        for (int i = 0; i < _dirs.Length; i++)
         {
-            HexCoord n = neighbors[i];
+            int nq = pos.q + _dirs[i].q;
+            int nr = pos.r + _dirs[i].r;
             for (int j = 0; j < defenders.Count; j++)
             {
                 PieceModel d = defenders[j];
@@ -594,7 +652,7 @@ public sealed class MinimaxBrain : MonoBehaviour, IAIBrain
                     continue;
                 }
 
-                if (d.position.q == n.q && d.position.r == n.r)
+                if (d.position.q == nq && d.position.r == nr)
                 {
                     return true;
                 }
@@ -604,13 +662,13 @@ public sealed class MinimaxBrain : MonoBehaviour, IAIBrain
         return false;
     }
 
-    private static int CountAdjacentAttackers(HexCoord pos, List<PieceModel> attackers, BoardModel board)
+    private static int CountAdjacentAttackers(HexCoord pos, List<PieceModel> attackers)
     {
         int count = 0;
-        List<HexCoord> neighbors = board.GetNeighbors(pos);
-        for (int i = 0; i < neighbors.Count; i++)
+        for (int i = 0; i < _dirs.Length; i++)
         {
-            HexCoord n = neighbors[i];
+            int nq = pos.q + _dirs[i].q;
+            int nr = pos.r + _dirs[i].r;
             for (int j = 0; j < attackers.Count; j++)
             {
                 PieceModel a = attackers[j];
@@ -619,7 +677,7 @@ public sealed class MinimaxBrain : MonoBehaviour, IAIBrain
                     continue;
                 }
 
-                if (a.position.q == n.q && a.position.r == n.r)
+                if (a.position.q == nq && a.position.r == nr)
                 {
                     count++;
                 }

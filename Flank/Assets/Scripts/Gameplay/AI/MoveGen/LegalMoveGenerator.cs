@@ -4,7 +4,7 @@ public static class LegalMoveGenerator
 {
     public static List<PlayerAction> GenerateLegalActionsForTurn(GameState state, BoardModel board, MovementRules movement)
     {
-        List<PlayerAction> actions = new List<PlayerAction>();
+        List<PlayerAction> actions = new List<PlayerAction>(20);
 
         foreach (PieceModel p in state.pieces.Values)
         {

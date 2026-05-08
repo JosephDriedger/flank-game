@@ -19,6 +19,9 @@ public abstract class EventLogController : MonoBehaviour
 
     protected readonly StringBuilder builder = new StringBuilder(8192);
 
+    private bool _layoutDirty;
+    private bool _pendingAutoScroll;
+
     protected virtual void OnEnable()
     {
         EnsureBound();
@@ -28,11 +31,40 @@ public abstract class EventLogController : MonoBehaviour
     protected virtual void OnDisable()
     {
         Unbind();
+        _layoutDirty = false;
+        _pendingAutoScroll = false;
+    }
+
+    private void LateUpdate()
+    {
+        if (!_layoutDirty)
+        {
+            return;
+        }
+
+        _layoutDirty = false;
+
+        if (logText != null)
+        {
+            logText.text = builder.ToString();
+        }
+
+        if (contentRect != null)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(contentRect);
+        }
+
+        if (_pendingAutoScroll && scrollRect != null)
+        {
+            Canvas.ForceUpdateCanvases();
+            scrollRect.verticalNormalizedPosition = 0f;
+            _pendingAutoScroll = false;
+        }
     }
 
     protected void Append(string message)
     {
-        if (string.IsNullOrWhiteSpace(message))
+        if (string.IsNullOrEmpty(message))
         {
             return;
         }
@@ -42,7 +74,10 @@ public abstract class EventLogController : MonoBehaviour
             return;
         }
 
-        bool wasNearBottom = scrollRect.verticalNormalizedPosition <= autoScrollThreshold;
+        if (!_pendingAutoScroll)
+        {
+            _pendingAutoScroll = scrollRect.verticalNormalizedPosition <= autoScrollThreshold;
+        }
 
         if (builder.Length > 0)
         {
@@ -53,13 +88,7 @@ public abstract class EventLogController : MonoBehaviour
 
         TrimToMaxLines();
 
-        logText.text = builder.ToString();
-        RebuildLayout();
-
-        if (wasNearBottom)
-        {
-            scrollRect.verticalNormalizedPosition = 0f;
-        }
+        _layoutDirty = true;
     }
 
     private void TrimToMaxLines()
@@ -113,12 +142,13 @@ public abstract class EventLogController : MonoBehaviour
         }
 
         LayoutRebuilder.ForceRebuildLayoutImmediate(contentRect);
-        Canvas.ForceUpdateCanvases();
     }
 
     public void Clear()
     {
         builder.Clear();
+        _layoutDirty = false;
+        _pendingAutoScroll = false;
 
         if (logText != null)
         {

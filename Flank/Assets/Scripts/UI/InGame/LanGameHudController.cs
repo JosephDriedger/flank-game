@@ -6,11 +6,16 @@ using System.Collections.Generic;
 
 public sealed class LanGameHudController : MonoBehaviour
 {
+    private static readonly Color AttackerColor  = new Color(0.91f, 0.46f, 0.29f);
+    private static readonly Color DefenderColor  = new Color(0.29f, 0.74f, 0.91f);
+
     [Header("UI")]
     [SerializeField] private TMP_Text turnText;
     [SerializeField] private TMP_Text movesText;
     [SerializeField] private TMP_Text flagsText;
     [SerializeField] private TMP_Text attackersText;
+    [SerializeField] private TMP_Text attackerTimerText;
+    [SerializeField] private TMP_Text defenderTimerText;
     [SerializeField] private Button endTurnButton;
 
     private LanGameController lanGame;
@@ -20,6 +25,8 @@ public sealed class LanGameHudController : MonoBehaviour
     private int initialFlags;
     private int initialAttackers;
     private bool initialized;
+    private bool attackerTimerVisible;
+    private bool defenderTimerVisible;
 
     private void OnEnable()
     {
@@ -49,6 +56,81 @@ public sealed class LanGameHudController : MonoBehaviour
         {
             TryBind();
         }
+
+        UpdateTimerDisplay();
+    }
+
+    private void UpdateTimerDisplay()
+    {
+        if (lanGame == null)
+        {
+            return;
+        }
+
+        bool timerActive = lanGame.HasTimeLimit
+            && (lanGame.State == null || lanGame.State.result == GameResult.None);
+
+        SetTimerVisible(attackerTimerText, ref attackerTimerVisible, timerActive);
+        SetTimerVisible(defenderTimerText, ref defenderTimerVisible, timerActive);
+
+        if (!timerActive)
+        {
+            return;
+        }
+
+        Role active = lanGame.State?.currentTurn ?? Role.Attacker;
+        float attTime = Mathf.Max(0f, lanGame.AttackerTimeRemainingDisplay);
+        float defTime = Mathf.Max(0f, lanGame.DefenderTimeRemainingDisplay);
+
+        UpdateClock(attackerTimerText, attTime, active == Role.Attacker, "#E8764A");
+        UpdateClock(defenderTimerText, defTime, active == Role.Defender, "#4ABCE8");
+    }
+
+    private static void SetTimerVisible(TMP_Text text, ref bool visible, bool active)
+    {
+        if (text == null) return;
+        if (active != visible)
+        {
+            visible = active;
+            text.gameObject.SetActive(active);
+        }
+    }
+
+    private static void UpdateClock(TMP_Text text, float rem, bool isActive, string roleColor)
+    {
+        if (text == null) return;
+        string color = isActive
+            ? (rem <= 10f ? "#FF4D33" : rem <= 30f ? "#F5C518" : roleColor)
+            : "#707070";
+        text.color = Color.white;
+        text.text = $"<color={color}>{FormatTime(rem)}</color>";
+    }
+
+    private static string FormatTime(float rem)
+    {
+        int mins = Mathf.FloorToInt(rem / 60f);
+        int secs = Mathf.FloorToInt(rem % 60f);
+        return $"{mins}:{secs:D2}";
+    }
+
+    private static string GetPlayerNameForRole(Role role)
+    {
+        if (LanLobbyState.Instance == null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < LanLobbyState.Instance.Players.Count; i++)
+        {
+            LobbyPlayerData p = LanLobbyState.Instance.Players[i];
+            if (p.Side == role)
+            {
+                string name = p.Name.ToString();
+                return string.IsNullOrWhiteSpace(name) ? null : name;
+            }
+        }
+
+        return null;
     }
 
     private void OnEndTurnClicked()
@@ -161,7 +243,11 @@ public sealed class LanGameHudController : MonoBehaviour
 
         if (turnText != null)
         {
-            turnText.text = state.currentTurn == Role.Attacker ? "Attacker Turn" : "Defender Turn";
+            string name = GetPlayerNameForRole(state.currentTurn);
+            if (string.IsNullOrWhiteSpace(name))
+                name = state.currentTurn == Role.Attacker ? "Attacker" : "Defender";
+            turnText.text = $"{name}'s Turn";
+            turnText.color = state.currentTurn == Role.Attacker ? AttackerColor : DefenderColor;
         }
 
         if (movesText != null)

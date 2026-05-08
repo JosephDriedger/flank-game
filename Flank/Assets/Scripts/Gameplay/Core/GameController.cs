@@ -27,6 +27,16 @@ public sealed class GameController : MonoBehaviour
     private TurnSystem _turnSystem;
     private RulesEngine _rules;
 
+    private float _timeLimitSeconds;
+    private float _attackerTimeRemaining;
+    private float _defenderTimeRemaining;
+
+    private const string AttackerTag = "<color=#E8764A>";
+    private const string DefenderTag = "<color=#4ABCE8>";
+    private const string SystemTag   = "<color=#F5C518>";
+    private const string AlertTag    = "<color=#FF6666>";
+    private const string EndTag      = "</color>";
+
     // ============================================================
     // UI / OBSERVERS
     // ============================================================
@@ -42,6 +52,17 @@ public sealed class GameController : MonoBehaviour
         }
     }
 
+    public bool HasTimeLimit => _timeLimitSeconds > 0f;
+    public float AttackerTimeRemaining => _attackerTimeRemaining;
+    public float DefenderTimeRemaining => _defenderTimeRemaining;
+
+    public void SetTimeLimit(int seconds)
+    {
+        _timeLimitSeconds = Mathf.Max(0f, seconds);
+        _attackerTimeRemaining = _timeLimitSeconds;
+        _defenderTimeRemaining = _timeLimitSeconds;
+    }
+
     private void RaiseStateChanged()
     {
         if (_state == null)
@@ -50,6 +71,44 @@ public sealed class GameController : MonoBehaviour
         }
 
         StateChanged?.Invoke(_state);
+    }
+
+    private void Update()
+    {
+        if (!HasTimeLimit || _state == null || _state.result != GameResult.None)
+        {
+            return;
+        }
+
+        if (_state.currentTurn == Role.Attacker)
+        {
+            _attackerTimeRemaining -= Time.deltaTime;
+            if (_attackerTimeRemaining <= 0f)
+            {
+                _attackerTimeRemaining = 0f;
+                ForceEndCurrentTurn();
+            }
+        }
+        else
+        {
+            _defenderTimeRemaining -= Time.deltaTime;
+            if (_defenderTimeRemaining <= 0f)
+            {
+                _defenderTimeRemaining = 0f;
+                ForceEndCurrentTurn();
+            }
+        }
+    }
+
+    private void ForceEndCurrentTurn()
+    {
+        if (_state == null || _state.result != GameResult.None)
+        {
+            return;
+        }
+
+        AddLog($"{AlertTag}Time expired.{EndTag}");
+        BeginTurn(_turnSystem.NextRole(_state.currentTurn));
     }
 
     private void AddLog(string message)
@@ -133,7 +192,7 @@ public sealed class GameController : MonoBehaviour
             _boardView.Build(_board);
             _boardView.SyncPieces(_state);
 
-            AddLog("New game started.");
+            AddLog($"{SystemTag}New game started.{EndTag}");
 
             RaiseStateChanged();
 
@@ -172,8 +231,9 @@ public sealed class GameController : MonoBehaviour
 
         CurrentController?.BeginTurn(_state, _board);
 
+        string turnTag  = role == Role.Attacker ? AttackerTag : DefenderTag;
         string turnName = role == Role.Attacker ? "Attacker" : "Defender";
-        AddLog($"{turnName} turn started.");
+        AddLog($"{turnTag}{turnName} turn started.{EndTag}");
 
         RaiseStateChanged();
     }
@@ -219,14 +279,15 @@ public sealed class GameController : MonoBehaviour
 
         _state.result = _rules.GetGameResult(_state);
 
+        string roleTag  = _state.currentTurn == Role.Attacker ? AttackerTag : DefenderTag;
         string roleName = _state.currentTurn == Role.Attacker ? "Attacker" : "Defender";
-        AddLog($"{roleName} moved {action.pieceId}.");
+        AddLog($"{roleTag}{roleName} moved {action.pieceId}.{EndTag}");
 
         RaiseStateChanged();
 
         if (_state.result != GameResult.None)
         {
-            AddLog($"Game Over: {_state.result}");
+            AddLog($"{SystemTag}<b>Game Over: {_state.result}</b>{EndTag}");
             Debug.Log($"Game Over: {_state.result}");
             CurrentController?.EndTurn();
             return true;
@@ -278,7 +339,7 @@ public sealed class GameController : MonoBehaviour
             return;
         }
 
-        AddLog("Defender ended turn early.");
+        AddLog($"{DefenderTag}Defender ended turn early.{EndTag}");
 
         BeginTurn(_turnSystem.NextRole(_state.currentTurn));
     }
@@ -422,7 +483,7 @@ public sealed class GameController : MonoBehaviour
         CurrentControllerBehaviour = null;
         CurrentController = null;
 
-        AddLog("Viewing final board (read-only).");
+        AddLog($"{SystemTag}Viewing final board (read-only).{EndTag}");
         RaiseStateChanged();
     }
 

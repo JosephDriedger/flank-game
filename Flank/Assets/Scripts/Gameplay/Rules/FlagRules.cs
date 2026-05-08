@@ -13,7 +13,7 @@ public sealed class FlagRules
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(piece.carryingFlagId))
+        if (!string.IsNullOrEmpty(piece.carryingFlagId))
         {
             return;
         }
@@ -23,7 +23,7 @@ public sealed class FlagRules
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(hex.flagId))
+        if (string.IsNullOrEmpty(hex.flagId))
         {
             return;
         }
@@ -39,7 +39,7 @@ public sealed class FlagRules
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(flag.carrierPieceId))
+        if (!string.IsNullOrEmpty(flag.carrierPieceId))
         {
             return;
         }
@@ -65,7 +65,7 @@ public sealed class FlagRules
                 continue;
             }
 
-            if (string.IsNullOrWhiteSpace(flag.carrierPieceId))
+            if (string.IsNullOrEmpty(flag.carrierPieceId))
             {
                 continue;
             }
@@ -85,7 +85,7 @@ public sealed class FlagRules
 
             if (board.TryGetHex(drop, out HexModel dropHex))
             {
-                if (string.IsNullOrWhiteSpace(dropHex.flagId))
+                if (string.IsNullOrEmpty(dropHex.flagId))
                 {
                     dropHex.flagId = flag.id;
                 }
@@ -113,7 +113,7 @@ public sealed class FlagRules
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(piece.carryingFlagId))
+        if (string.IsNullOrEmpty(piece.carryingFlagId))
         {
             return;
         }

@@ -43,9 +43,21 @@ public sealed class HeuristicBrain : MonoBehaviour, IAIBrain
     [Tooltip("Small random jitter added to break ties.")]
     [SerializeField] private int _tieBreakJitter = 3;
 
+    private static readonly HexCoord[] _dirs = new HexCoord[]
+    {
+        new HexCoord(+1,  0),
+        new HexCoord(-1,  0),
+        new HexCoord( 0, +1),
+        new HexCoord( 0, -1),
+        new HexCoord(+1, -1),
+        new HexCoord(-1, +1),
+    };
+
     private readonly RulesEngine _rules = new RulesEngine();
     private readonly TurnSystem _turnSystem = new TurnSystem(new TurnRules(), new MoveBudget());
     private readonly MovementRules _movement = new MovementRules();
+    private readonly List<PieceModel> _attackerBuf = new List<PieceModel>(8);
+    private readonly List<PieceModel> _defenderBuf = new List<PieceModel>(4);
 
     public PlayerAction ChooseAction(List<PlayerAction> legal, GameState state, BoardModel board)
     {
@@ -134,8 +146,8 @@ public sealed class HeuristicBrain : MonoBehaviour, IAIBrain
         // Count pieces.
         int attackersAlive = 0;
         int attackersCaptured = 0;
-        List<PieceModel> attackerPieces = new List<PieceModel>(8);
-        List<PieceModel> defenderPieces = new List<PieceModel>(4);
+        _attackerBuf.Clear();
+        _defenderBuf.Clear();
 
         foreach (PieceModel p in state.pieces.Values)
         {
@@ -146,7 +158,7 @@ public sealed class HeuristicBrain : MonoBehaviour, IAIBrain
 
             if (p.role == Role.Attacker)
             {
-                attackerPieces.Add(p);
+                _attackerBuf.Add(p);
                 if (!p.isCaptured)
                 {
                     attackersAlive++;
@@ -158,7 +170,7 @@ public sealed class HeuristicBrain : MonoBehaviour, IAIBrain
             }
             else if (p.role == Role.Defender)
             {
-                defenderPieces.Add(p);
+                _defenderBuf.Add(p);
             }
         }
 
@@ -179,14 +191,14 @@ public sealed class HeuristicBrain : MonoBehaviour, IAIBrain
         HexCoord returnHex = FindReturnHex(board);
 
         // Evaluate attackers' objectives.
-        foreach (PieceModel a in attackerPieces)
+        foreach (PieceModel a in _attackerBuf)
         {
             if (a == null || a.isCaptured)
             {
                 continue;
             }
 
-            if (!string.IsNullOrWhiteSpace(a.carryingFlagId))
+            if (!string.IsNullOrEmpty(a.carryingFlagId))
             {
                 // Carry to return.
                 score += (perspective == Role.Attacker ? +1 : -1) * _carryingFlagBonus;
@@ -194,7 +206,7 @@ public sealed class HeuristicBrain : MonoBehaviour, IAIBrain
                 score += (perspective == Role.Attacker ? +1 : -1) * (_carryToReturnStepBonus * (12 - Mathf.Clamp(distToReturn, 0, 12)));
 
                 // If a defender is adjacent to the carrier, penalize (danger).
-                if (IsAnyDefenderAdjacent(a.position, defenderPieces, board))
+                if (IsAnyDefenderAdjacent(a.position, _defenderBuf))
                 {
                     score += (perspective == Role.Attacker ? -1 : +1) * _carrierAdjDefenderPenalty;
                 }
@@ -210,7 +222,7 @@ public sealed class HeuristicBrain : MonoBehaviour, IAIBrain
                         continue;
                     }
 
-                    HexCoord? loc = GetFlagLocation(f, state, board);
+                    HexCoord? loc = GetFlagLocation(f, state);
                     if (!loc.HasValue)
                     {
                         continue;
@@ -232,14 +244,14 @@ public sealed class HeuristicBrain : MonoBehaviour, IAIBrain
         }
 
         // Evaluate defenders' pressure / positioning.
-        foreach (PieceModel d in defenderPieces)
+        foreach (PieceModel d in _defenderBuf)
         {
             if (d == null || d.isCaptured)
             {
                 continue;
             }
 
-            int adjacentAttackers = CountAdjacentAttackers(d.position, attackerPieces, board);
+            int adjacentAttackers = CountAdjacentAttackers(d.position, _attackerBuf);
             if (adjacentAttackers > 0)
             {
                 int press = adjacentAttackers * _defenderPressureBonus;
@@ -401,7 +413,7 @@ public sealed class HeuristicBrain : MonoBehaviour, IAIBrain
         return new HexCoord(0, 0);
     }
 
-    private static HexCoord? GetFlagLocation(FlagModel flag, GameState state, BoardModel board)
+    private static HexCoord? GetFlagLocation(FlagModel flag, GameState state)
     {
         if (flag == null)
         {
@@ -413,7 +425,7 @@ public sealed class HeuristicBrain : MonoBehaviour, IAIBrain
             return null;
         }
 
-        if (!string.IsNullOrWhiteSpace(flag.carrierPieceId))
+        if (!string.IsNullOrEmpty(flag.carrierPieceId))
         {
             PieceModel carrier = state.GetPiece(flag.carrierPieceId);
             if (carrier != null)
@@ -425,12 +437,12 @@ public sealed class HeuristicBrain : MonoBehaviour, IAIBrain
         return flag.location;
     }
 
-    private static bool IsAnyDefenderAdjacent(HexCoord pos, List<PieceModel> defenders, BoardModel board)
+    private static bool IsAnyDefenderAdjacent(HexCoord pos, List<PieceModel> defenders)
     {
-        List<HexCoord> neighbors = board.GetNeighbors(pos);
-        for (int i = 0; i < neighbors.Count; i++)
+        for (int i = 0; i < _dirs.Length; i++)
         {
-            HexCoord n = neighbors[i];
+            int nq = pos.q + _dirs[i].q;
+            int nr = pos.r + _dirs[i].r;
             for (int j = 0; j < defenders.Count; j++)
             {
                 PieceModel d = defenders[j];
@@ -439,7 +451,7 @@ public sealed class HeuristicBrain : MonoBehaviour, IAIBrain
                     continue;
                 }
 
-                if (d.position.q == n.q && d.position.r == n.r)
+                if (d.position.q == nq && d.position.r == nr)
                 {
                     return true;
                 }
@@ -449,13 +461,13 @@ public sealed class HeuristicBrain : MonoBehaviour, IAIBrain
         return false;
     }
 
-    private static int CountAdjacentAttackers(HexCoord pos, List<PieceModel> attackers, BoardModel board)
+    private static int CountAdjacentAttackers(HexCoord pos, List<PieceModel> attackers)
     {
         int count = 0;
-        List<HexCoord> neighbors = board.GetNeighbors(pos);
-        for (int i = 0; i < neighbors.Count; i++)
+        for (int i = 0; i < _dirs.Length; i++)
         {
-            HexCoord n = neighbors[i];
+            int nq = pos.q + _dirs[i].q;
+            int nr = pos.r + _dirs[i].r;
             for (int j = 0; j < attackers.Count; j++)
             {
                 PieceModel a = attackers[j];
@@ -464,7 +476,7 @@ public sealed class HeuristicBrain : MonoBehaviour, IAIBrain
                     continue;
                 }
 
-                if (a.position.q == n.q && a.position.r == n.r)
+                if (a.position.q == nq && a.position.r == nr)
                 {
                     count++;
                 }

@@ -81,7 +81,7 @@ public sealed class CaptureRules
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(hex.occupantPieceId))
+        if (string.IsNullOrEmpty(hex.occupantPieceId))
         {
             return false;
         }

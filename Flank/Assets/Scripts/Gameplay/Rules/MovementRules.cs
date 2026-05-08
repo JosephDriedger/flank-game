@@ -14,7 +14,7 @@ public sealed class MovementRules
 
     public List<HexCoord> GetLegalDestinations(PieceModel piece, GameState state, BoardModel board)
     {
-        List<HexCoord> results = new List<HexCoord>();
+        List<HexCoord> results = new List<HexCoord>(12);
 
         if (piece == null || state == null || board == null)
         {
@@ -79,7 +79,7 @@ public sealed class MovementRules
                 continue;
             }
 
-            if (string.IsNullOrWhiteSpace(midHex.occupantPieceId))
+            if (string.IsNullOrEmpty(midHex.occupantPieceId))
             {
                 continue;
             }
@@ -114,14 +114,73 @@ public sealed class MovementRules
 
     public bool IsLegalMove(PieceModel piece, HexCoord to, GameState state, BoardModel board)
     {
-        List<HexCoord> legal = GetLegalDestinations(piece, state, board);
-
-        for (int i = 0; i < legal.Count; i++)
+        if (piece == null || piece.isCaptured || state == null || board == null)
         {
-            if (legal[i].q == to.q && legal[i].r == to.r)
+            return false;
+        }
+
+        if (!board.TryGetHex(to, out HexModel toHex))
+        {
+            return false;
+        }
+
+        if (!IsDestinationEmpty(toHex) || !IsDestinationAllowedForPiece(piece, toHex))
+        {
+            return false;
+        }
+
+        HexCoord from = piece.position;
+        bool isDefenderSecondMove =
+            state.currentTurn == Role.Defender
+            && state.turnProgress != null
+            && state.turnProgress.movesUsed == 1
+            && piece.id == state.turnProgress.firstMovedPieceId;
+
+        // Adjacent moves
+        for (int i = 0; i < _dirs.Length; i++)
+        {
+            if (from.q + _dirs[i].q != to.q || from.r + _dirs[i].r != to.r)
             {
-                return true;
+                continue;
             }
+
+            if (isDefenderSecondMove
+                && to.q == state.turnProgress.firstMoveFrom.q
+                && to.r == state.turnProgress.firstMoveFrom.r)
+            {
+                continue;
+            }
+
+            return true;
+        }
+
+        // Jump moves (distance 2, midpoint occupied)
+        for (int i = 0; i < _dirs.Length; i++)
+        {
+            if (from.q + _dirs[i].q * 2 != to.q || from.r + _dirs[i].r * 2 != to.r)
+            {
+                continue;
+            }
+
+            HexCoord mid = new HexCoord(from.q + _dirs[i].q, from.r + _dirs[i].r);
+            if (!board.TryGetHex(mid, out HexModel midHex))
+            {
+                continue;
+            }
+
+            if (string.IsNullOrEmpty(midHex.occupantPieceId))
+            {
+                continue;
+            }
+
+            if (isDefenderSecondMove
+                && to.q == state.turnProgress.firstMoveFrom.q
+                && to.r == state.turnProgress.firstMoveFrom.r)
+            {
+                continue;
+            }
+
+            return true;
         }
 
         return false;
@@ -150,7 +209,7 @@ public sealed class MovementRules
 
     private static bool IsDestinationEmpty(HexModel hex)
     {
-        return string.IsNullOrWhiteSpace(hex.occupantPieceId);
+        return string.IsNullOrEmpty(hex.occupantPieceId);
     }
 
     private static bool IsDestinationAllowedForPiece(PieceModel piece, HexModel destination)
@@ -166,8 +225,8 @@ public sealed class MovementRules
             // Prevent flag stacking: if this attacker is already carrying a flag,
             // they cannot move onto a hex that already contains a flag.
             // NOTE: This assumes PieceModel has a string field/property named 'carryingFlagId'.
-            if (!string.IsNullOrWhiteSpace(piece.carryingFlagId) &&
-                !string.IsNullOrWhiteSpace(destination.flagId))
+            if (!string.IsNullOrEmpty(piece.carryingFlagId) &&
+                !string.IsNullOrEmpty(destination.flagId))
             {
                 return false;
             }
@@ -179,7 +238,7 @@ public sealed class MovementRules
         {
             // Defenders cannot move onto a hex that CURRENTLY contains a flag.
             // Once the flag moves away, this hex becomes legal again.
-            if (!string.IsNullOrWhiteSpace(destination.flagId))
+            if (!string.IsNullOrEmpty(destination.flagId))
             {
                 return false;
             }

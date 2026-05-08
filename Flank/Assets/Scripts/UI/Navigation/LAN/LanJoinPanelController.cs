@@ -27,6 +27,7 @@ public sealed class LanJoinPanelController : MonoBehaviour
     private bool isConnecting;
     private string connectAttemptIp;
     private ushort connectAttemptPort;
+    private string connectButtonOriginalLabel;
 
     private void Awake()
     {
@@ -106,6 +107,12 @@ public sealed class LanJoinPanelController : MonoBehaviour
         if (connectButton != null)
         {
             connectButton.interactable = false;
+            TMP_Text label = connectButton.GetComponentInChildren<TMP_Text>();
+            if (label != null)
+            {
+                connectButtonOriginalLabel = label.text;
+                label.text = "Connecting...";
+            }
         }
 
         // Subscribe before starting, so we don't miss callbacks.
@@ -224,6 +231,12 @@ public sealed class LanJoinPanelController : MonoBehaviour
         if (connectButton != null)
         {
             connectButton.interactable = true;
+            TMP_Text label = connectButton.GetComponentInChildren<TMP_Text>();
+            if (label != null && !string.IsNullOrEmpty(connectButtonOriginalLabel))
+            {
+                label.text = connectButtonOriginalLabel;
+                connectButtonOriginalLabel = null;
+            }
         }
     }
 

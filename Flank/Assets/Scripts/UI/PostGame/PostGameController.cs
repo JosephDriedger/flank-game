@@ -114,18 +114,39 @@ public sealed class PostGameController : MonoBehaviour
         }
 
         string result = LoadString(PostGameKeys.LastGameResult, string.Empty);
+        GameSettings settings = LoadLastPlayedSettings();
 
         if (result == GameResult.AttackersWin.ToString())
         {
-            winText.text = "Attackers Win";
+            string name = settings?.attacker?.displayName;
+            winText.text = string.IsNullOrWhiteSpace(name) ? "Attackers Win!" : $"{name} Wins!";
         }
         else if (result == GameResult.DefendersWin.ToString())
         {
-            winText.text = "Defenders Win";
+            string name = settings?.defender?.displayName;
+            winText.text = string.IsNullOrWhiteSpace(name) ? "Defenders Win!" : $"{name} Wins!";
         }
         else
         {
             winText.text = "Game Over";
+        }
+    }
+
+    private GameSettings LoadLastPlayedSettings()
+    {
+        string json = LoadString(PostGameKeys.LastPlayedSettingsJson, string.Empty);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonUtility.FromJson<GameSettings>(json);
+        }
+        catch
+        {
+            return null;
         }
     }
 

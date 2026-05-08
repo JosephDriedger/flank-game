@@ -17,6 +17,7 @@ public sealed class LanHostPanelController : MonoBehaviour
     [SerializeField] private TMP_InputField ipAddressInput;
     [SerializeField] private TMP_InputField portInput;
     [SerializeField] private TMP_InputField hostPlayerNameInput;
+    [SerializeField] private TMP_Dropdown timeLimitDropdown;
 
     [Header("Targets")]
     [SerializeField] private GameObject lanMenuPanel;
@@ -89,6 +90,14 @@ public sealed class LanHostPanelController : MonoBehaviour
             return;
         }
 
+        if (GameSettingsManager.Instance != null)
+        {
+            GameSettings s = GameSettings.CreateDefault();
+            s.mode = GameMode.Lan;
+            s.timeLimit = ReadTimeLimit();
+            GameSettingsManager.Instance.Set(s);
+        }
+
         // Ensure the UI reflects the actual host port we used.
         if (portInput != null)
         {
@@ -98,6 +107,19 @@ public sealed class LanHostPanelController : MonoBehaviour
         if (panelManager != null && lanLobbyPanel != null)
         {
             panelManager.ShowPanel(lanLobbyPanel);
+        }
+    }
+
+    private TimeLimitOption ReadTimeLimit()
+    {
+        if (timeLimitDropdown == null) return TimeLimitOption.Unlimited;
+        switch (timeLimitDropdown.value)
+        {
+            case 1: return TimeLimitOption.ThreeMinutes;
+            case 2: return TimeLimitOption.FiveMinutes;
+            case 3: return TimeLimitOption.TenMinutes;
+            case 4: return TimeLimitOption.TwentyMinutes;
+            default: return TimeLimitOption.Unlimited;
         }
     }
 

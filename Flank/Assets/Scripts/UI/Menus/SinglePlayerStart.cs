@@ -1,5 +1,6 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 public sealed class SinglePlayerStart : MonoBehaviour
 {
@@ -8,18 +9,26 @@ public sealed class SinglePlayerStart : MonoBehaviour
     [Header("UI")]
     [SerializeField] private TMP_Dropdown _difficultyDropdown;
     [SerializeField] private TMP_Dropdown _timeLimitDropdown;
+    [SerializeField] private Toggle _attackerToggle;
+    [SerializeField] private Toggle _defenderToggle;
 
-    [Header("Play As (set by your toggles)")]
-    [SerializeField] private bool _playAsAttacker = true;
+    private bool _playAsAttacker = true;
 
-    public void SetPlayAsAttacker()
+    private void Awake()
     {
-        _playAsAttacker = true;
-    }
+        _attackerToggle?.onValueChanged.AddListener(on =>
+        {
+            if (!on) return;
+            _playAsAttacker = true;
+            _defenderToggle?.SetIsOnWithoutNotify(false);
+        });
 
-    public void SetPlayAsDefender()
-    {
-        _playAsAttacker = false;
+        _defenderToggle?.onValueChanged.AddListener(on =>
+        {
+            if (!on) return;
+            _playAsAttacker = false;
+            _attackerToggle?.SetIsOnWithoutNotify(false);
+        });
     }
 
     public void OnStartPressed()
@@ -83,11 +92,13 @@ public sealed class SinglePlayerStart : MonoBehaviour
             return TimeLimitOption.Unlimited;
         }
 
-        int i = _timeLimitDropdown.value;
-
-        if (i == 0) { return TimeLimitOption.Unlimited; }
-        if (i == 1) { return TimeLimitOption.FiveMinutes; }
-        if (i == 2) { return TimeLimitOption.TenMinutes; }
-        return TimeLimitOption.FifteenMinutes;
+        switch (_timeLimitDropdown.value)
+        {
+            case 1: return TimeLimitOption.ThreeMinutes;
+            case 2: return TimeLimitOption.FiveMinutes;
+            case 3: return TimeLimitOption.TenMinutes;
+            case 4: return TimeLimitOption.TwentyMinutes;
+            default: return TimeLimitOption.Unlimited;
+        }
     }
 }

@@ -27,6 +27,25 @@ public sealed class LanGameController : NetworkBehaviour
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Server);
 
+    private const string AttackerTag = "<color=#E8764A>";
+    private const string DefenderTag = "<color=#4ABCE8>";
+    private const string SystemTag   = "<color=#F5C518>";
+    private const string AlertTag    = "<color=#FF6666>";
+    private const string EndTag      = "</color>";
+
+    private readonly NetworkVariable<int> _networkTimeLimitSeconds =
+        new NetworkVariable<int>(0,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
+    // Server-authoritative chess clocks.
+    private float _serverAttackerTimeRemaining;
+    private float _serverDefenderTimeRemaining;
+
+    // Client-side display clocks (corrected by each snapshot).
+    private float _localAttackerTimeRemaining;
+    private float _localDefenderTimeRemaining;
+
     public event Action<GameState> StateChanged;
     public event Action<string> LogAdded;
 
@@ -45,6 +64,14 @@ public sealed class LanGameController : NetworkBehaviour
             return _board;
         }
     }
+
+    public bool HasTimeLimit => _networkTimeLimitSeconds.Value > 0;
+
+    public float AttackerTimeRemainingDisplay =>
+        IsServer ? _serverAttackerTimeRemaining : _localAttackerTimeRemaining;
+
+    public float DefenderTimeRemainingDisplay =>
+        IsServer ? _serverDefenderTimeRemaining : _localDefenderTimeRemaining;
 
     private void Awake()
     {
@@ -70,6 +97,15 @@ public sealed class LanGameController : NetworkBehaviour
         {
             _turnSystem = new TurnSystem(new TurnRules(), new MoveBudget());
             _rules = new RulesEngine();
+
+            int timeLimitSeconds = 0;
+            if (GameSettingsManager.Instance?.Current != null)
+            {
+                timeLimitSeconds = (int)GameSettingsManager.Instance.Current.timeLimit * 60;
+            }
+
+            _networkTimeLimitSeconds.Value = timeLimitSeconds;
+
             NewGameServer();
         }
 
@@ -130,6 +166,56 @@ public sealed class LanGameController : NetworkBehaviour
         RequestMoveServerRpc(pieceId, destination.q, destination.r);
     }
 
+    private void Update()
+    {
+        if (IsServer)
+        {
+            if (!HasTimeLimit || _state == null || _state.result != GameResult.None)
+            {
+                return;
+            }
+
+            if (_state.currentTurn == Role.Attacker)
+            {
+                _serverAttackerTimeRemaining -= Time.deltaTime;
+                if (_serverAttackerTimeRemaining <= 0f)
+                {
+                    _serverAttackerTimeRemaining = 0f;
+                    AddLog($"{AlertTag}Time expired.{EndTag}");
+                    BeginTurnServer(_turnSystem.NextRole(_state.currentTurn));
+                }
+            }
+            else
+            {
+                _serverDefenderTimeRemaining -= Time.deltaTime;
+                if (_serverDefenderTimeRemaining <= 0f)
+                {
+                    _serverDefenderTimeRemaining = 0f;
+                    AddLog($"{AlertTag}Time expired.{EndTag}");
+                    BeginTurnServer(_turnSystem.NextRole(_state.currentTurn));
+                }
+            }
+        }
+        else
+        {
+            if (!HasTimeLimit || _state == null || _state.result != GameResult.None)
+            {
+                return;
+            }
+
+            if (_state.currentTurn == Role.Attacker)
+            {
+                _localAttackerTimeRemaining -= Time.deltaTime;
+                if (_localAttackerTimeRemaining < 0f) _localAttackerTimeRemaining = 0f;
+            }
+            else
+            {
+                _localDefenderTimeRemaining -= Time.deltaTime;
+                if (_localDefenderTimeRemaining < 0f) _localDefenderTimeRemaining = 0f;
+            }
+        }
+    }
+
     // Fires on the server immediately and replicates the message to all clients.
     private void AddLog(string message)
     {
@@ -182,9 +268,11 @@ public sealed class LanGameController : NetworkBehaviour
         }
 
         _turnSystem.BeginTurn(_state, Role.Attacker);
+        _serverAttackerTimeRemaining = _networkTimeLimitSeconds.Value;
+        _serverDefenderTimeRemaining = _networkTimeLimitSeconds.Value;
 
-        AddLog("New game started.");
-        AddLog("Attacker turn started.");
+        AddLog($"{SystemTag}New game started.{EndTag}");
+        AddLog($"{AttackerTag}Attacker turn started.{EndTag}");
         PublishSnapshotServer();
     }
 
@@ -248,7 +336,7 @@ public sealed class LanGameController : NetworkBehaviour
             return;
         }
 
-        AddLog("Defender ended turn early.");
+        AddLog($"{DefenderTag}Defender ended turn early.{EndTag}");
         BeginTurnServer(_turnSystem.NextRole(_state.currentTurn));
     }
 
@@ -281,12 +369,13 @@ public sealed class LanGameController : NetworkBehaviour
         _turnSystem.SpendAction(_state, action.pieceId, fromBeforeMove);
         _state.result = _rules.GetGameResult(_state);
 
+        string roleTag  = _state.currentTurn == Role.Attacker ? AttackerTag : DefenderTag;
         string roleName = _state.currentTurn == Role.Attacker ? "Attacker" : "Defender";
-        AddLog($"{roleName} moved {action.pieceId}.");
+        AddLog($"{roleTag}{roleName} moved {action.pieceId}.{EndTag}");
 
         if (_state.result != GameResult.None)
         {
-            AddLog($"Game over: {_state.result}.");
+            AddLog($"{SystemTag}<b>Game over: {_state.result}.</b>{EndTag}");
         }
 
         PublishSnapshotServer();
@@ -322,8 +411,9 @@ public sealed class LanGameController : NetworkBehaviour
 
         if (_state.result == GameResult.None)
         {
+            string turnTag  = _state.currentTurn == Role.Attacker ? AttackerTag : DefenderTag;
             string turnName = _state.currentTurn == Role.Attacker ? "Attacker" : "Defender";
-            AddLog($"{turnName} turn started.");
+            AddLog($"{turnTag}{turnName} turn started.{EndTag}");
         }
 
         PublishSnapshotServer();
@@ -332,6 +422,8 @@ public sealed class LanGameController : NetworkBehaviour
     private void PublishSnapshotServer()
     {
         GameStateSnapshot snap = BuildSnapshot(_state);
+        snap.attackerTimeRemaining = _serverAttackerTimeRemaining;
+        snap.defenderTimeRemaining = _serverDefenderTimeRemaining;
         string json = JsonUtility.ToJson(snap);
 
         if (json.Length > 4000)
@@ -367,6 +459,13 @@ public sealed class LanGameController : NetworkBehaviour
 
         LoadFromSnapshotLocal(snap);
         ApplyPerspectiveLocal();
+
+        // Clients sync chess clock values from the server snapshot.
+        if (!IsServer && HasTimeLimit)
+        {
+            _localAttackerTimeRemaining = snap.attackerTimeRemaining;
+            _localDefenderTimeRemaining = snap.defenderTimeRemaining;
+        }
 
         StateChanged?.Invoke(_state);
     }

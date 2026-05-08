@@ -5,6 +5,9 @@ using UnityEngine.UI;
 
 public sealed class GameHudController : MonoBehaviour
 {
+    private static readonly Color AttackerColor  = new Color(0.91f, 0.46f, 0.29f);
+    private static readonly Color DefenderColor  = new Color(0.29f, 0.74f, 0.91f);
+
     [Header("Scene References")]
     [SerializeField] private GameController _gameController;
 
@@ -16,12 +19,18 @@ public sealed class GameHudController : MonoBehaviour
     [SerializeField] private TMP_Text _flagsText;
     [SerializeField] private TMP_Text _attackersText;
 
+    [Header("Timer")]
+    [SerializeField] private TMP_Text _attackerTimerText;
+    [SerializeField] private TMP_Text _defenderTimerText;
+
     [Header("Buttons")]
     [SerializeField] private Button _endTurnButton;
 
     private int _initialAttackerCount;
     private int _initialFlagCount;
     private bool _isInitialized;
+    private bool _attackerTimerVisible;
+    private bool _defenderTimerVisible;
 
     private void OnEnable()
     {
@@ -57,6 +66,59 @@ public sealed class GameHudController : MonoBehaviour
         {
             _endTurnButton.onClick.RemoveListener(HandleEndTurnClicked);
         }
+    }
+
+    private void Update()
+    {
+        if (_gameController == null)
+        {
+            return;
+        }
+
+        bool timerActive = _gameController.HasTimeLimit
+            && (_gameController.State == null || _gameController.State.result == GameResult.None);
+
+        SetTimerVisible(_attackerTimerText, ref _attackerTimerVisible, timerActive);
+        SetTimerVisible(_defenderTimerText, ref _defenderTimerVisible, timerActive);
+
+        if (!timerActive)
+        {
+            return;
+        }
+
+        Role active = _gameController.State?.currentTurn ?? Role.Attacker;
+        float attTime = Mathf.Max(0f, _gameController.AttackerTimeRemaining);
+        float defTime = Mathf.Max(0f, _gameController.DefenderTimeRemaining);
+
+        UpdateClock(_attackerTimerText, attTime, active == Role.Attacker, "#E8764A");
+        UpdateClock(_defenderTimerText, defTime, active == Role.Defender, "#4ABCE8");
+    }
+
+    private static void SetTimerVisible(TMP_Text text, ref bool visible, bool active)
+    {
+        if (text == null) return;
+        if (active != visible)
+        {
+            visible = active;
+            text.gameObject.SetActive(active);
+        }
+    }
+
+    private static void UpdateClock(TMP_Text text, float rem, bool isActive, string roleColor)
+    {
+        if (text == null) return;
+        string color = isActive
+            ? (rem <= 10f ? "#FF4D33" : rem <= 30f ? "#F5C518" : roleColor)
+            : "#707070";
+        text.color = Color.white;
+        text.text = $"<color={color}>{FormatTime(rem)}</color>";
+    }
+
+    private static string FormatTime(float rem)
+    {
+        int mins = Mathf.FloorToInt(rem / 60f);
+        int secs = Mathf.FloorToInt(rem % 60f);
+        return $"{mins}:{secs:D2}";
     }
 
     private void HandleEndTurnClicked()
@@ -111,13 +173,21 @@ public sealed class GameHudController : MonoBehaviour
             return;
         }
 
+        GameSettings settings = GameSettingsManager.Instance?.Current;
+
         if (state.currentTurn == Role.Attacker)
         {
-            _turnIndicatorText.text = "Attacker Turn";
+            string name = settings?.attacker?.displayName;
+            if (string.IsNullOrWhiteSpace(name)) name = "Attacker";
+            _turnIndicatorText.text = $"{name}'s Turn";
+            _turnIndicatorText.color = AttackerColor;
         }
         else
         {
-            _turnIndicatorText.text = "Defender Turn";
+            string name = settings?.defender?.displayName;
+            if (string.IsNullOrWhiteSpace(name)) name = "Defender";
+            _turnIndicatorText.text = $"{name}'s Turn";
+            _turnIndicatorText.color = DefenderColor;
         }
     }
 

@@ -57,11 +57,13 @@ public sealed class PassNPlayStart : MonoBehaviour
             return TimeLimitOption.Unlimited;
         }
 
-        int i = _timeLimitDropdown.value;
-
-        if (i == 0) { return TimeLimitOption.Unlimited; }
-        if (i == 1) { return TimeLimitOption.FiveMinutes; }
-        if (i == 2) { return TimeLimitOption.TenMinutes; }
-        return TimeLimitOption.FifteenMinutes;
+        switch (_timeLimitDropdown.value)
+        {
+            case 1: return TimeLimitOption.ThreeMinutes;
+            case 2: return TimeLimitOption.FiveMinutes;
+            case 3: return TimeLimitOption.TenMinutes;
+            case 4: return TimeLimitOption.TwentyMinutes;
+            default: return TimeLimitOption.Unlimited;
+        }
     }
 }

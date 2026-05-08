@@ -91,8 +91,10 @@ public sealed class LanLobbyPanelController : MonoBehaviour
             NetworkManager.Singleton.OnClientDisconnectCallback += this.HandleClientDisconnected;
         }
 
+        this.localReady = false;
         this.RefreshHeader();
         this.Refresh();
+        this.UpdateReadyButton();
         this.TrySendMyNameOnce();
     }
 
@@ -273,6 +275,37 @@ public sealed class LanLobbyPanelController : MonoBehaviour
         {
             LanLobbyState.Instance.SetReadyServerRpc(this.localReady);
         }
+
+        this.UpdateReadyButton();
+    }
+
+    private void UpdateReadyButton()
+    {
+        if (readyButton == null)
+        {
+            return;
+        }
+
+        TMP_Text label = readyButton.GetComponentInChildren<TMP_Text>();
+        if (label != null)
+        {
+            label.text = this.localReady ? "Not Ready" : "Ready";
+        }
+
+        ColorBlock colors = readyButton.colors;
+        if (this.localReady)
+        {
+            colors.normalColor      = new Color(0.25f, 0.75f, 0.35f);
+            colors.highlightedColor = new Color(0.35f, 0.85f, 0.45f);
+            colors.pressedColor     = new Color(0.15f, 0.60f, 0.25f);
+        }
+        else
+        {
+            colors.normalColor      = Color.white;
+            colors.highlightedColor = new Color(0.90f, 0.90f, 0.90f);
+            colors.pressedColor     = new Color(0.75f, 0.75f, 0.75f);
+        }
+        readyButton.colors = colors;
     }
 
     private void HandleStartGame()
