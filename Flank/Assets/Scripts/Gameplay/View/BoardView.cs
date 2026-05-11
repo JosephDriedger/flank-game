@@ -37,6 +37,11 @@ public sealed class BoardView : MonoBehaviour
     // BUILD
     // ============================================================
 
+    public void SetBoard(BoardModel board)
+    {
+        _board = board;
+    }
+
     public void Build(BoardModel board)
     {
         _board = board;

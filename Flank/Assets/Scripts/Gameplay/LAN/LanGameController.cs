@@ -570,6 +570,10 @@ public sealed class LanGameController : NetworkBehaviour
                 _boardView.Build(_board);
                 _boardViewBuilt = true;
             }
+            else
+            {
+                _boardView.SetBoard(_board);
+            }
 
             _boardView.SyncPieces(_state);
             _boardView.ClearHighlights();
