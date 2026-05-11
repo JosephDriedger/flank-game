@@ -193,7 +193,7 @@ public sealed class OnlineBrowsePanelController : MonoBehaviour
             return;
         }
 
-        _connectRoutine = LanNetworkService.Instance.RunJoinTimeout(this, connectTimeoutSeconds, () =>
+        _connectRoutine = LanNetworkService.Instance.RunJoinTimeout(connectTimeoutSeconds, () =>
         {
             CleanupConnect();
             SetStatus("Connection timed out. Check the room code or IP.");
