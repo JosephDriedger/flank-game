@@ -818,30 +818,40 @@ public sealed class LanGameController : NetworkBehaviour
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void QuitToLobbyServerRpc()
     {
-        if (NetworkManager.Singleton == null)
+        if (!IsServer)
         {
             return;
         }
 
+        QuitToLobbyClientRpc();
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void QuitToLobbyClientRpc()
+    {
         if (LanNetworkService.Instance != null)
         {
             LanNetworkService.Instance.IsViewBoard = false;
             LanNetworkService.Instance.IsPostGameTransition = true;
         }
 
-        string panelName = "LanLobbyPanel";
+        // LanLobbyPanel should already be saved as the last panel from the lobby session,
+        // but re-save to PlayerPrefs explicitly since PanelManager reads from there.
+        const string panelName = "LanLobbyPanel";
+        PlayerPrefs.SetString("PanelManager.LastPanelName", panelName);
+        PlayerPrefs.Save();
         if (SaveSystem.Instance != null)
         {
             SaveSystem.Instance.SaveString("PanelManager.LastPanelName", panelName);
         }
-        else
+
+        if (SceneRouter.Instance != null)
         {
-            PlayerPrefs.SetString("PanelManager.LastPanelName", panelName);
-            PlayerPrefs.Save();
+            SceneRouter.Instance.GoToNavigation(openLastPanel: true);
+            return;
         }
 
-        NetworkManager.Singleton.SceneManager.LoadScene(
-            _navigationSceneName, UnityEngine.SceneManagement.LoadSceneMode.Single);
+        UnityEngine.SceneManagement.SceneManager.LoadScene(_navigationSceneName);
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
