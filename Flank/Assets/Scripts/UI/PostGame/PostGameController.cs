@@ -133,14 +133,20 @@ public sealed class PostGameController : MonoBehaviour
         string result = LoadString(PostGameKeys.LastGameResult, string.Empty);
         GameSettings settings = LoadLastPlayedSettings();
 
+        // In network modes the client may have stale single-player settings
+        // (including AI display names). Always use generic role names there.
+        bool useRoleNames = settings == null ||
+                            settings.mode == GameMode.Lan ||
+                            settings.mode == GameMode.OnlineMatchmaking;
+
         if (result == GameResult.AttackersWin.ToString())
         {
-            string name = settings?.attacker?.displayName;
+            string name = useRoleNames ? null : settings?.attacker?.displayName;
             winText.text = string.IsNullOrWhiteSpace(name) ? "Attackers Win!" : $"{name} Wins!";
         }
         else if (result == GameResult.DefendersWin.ToString())
         {
-            string name = settings?.defender?.displayName;
+            string name = useRoleNames ? null : settings?.defender?.displayName;
             winText.text = string.IsNullOrWhiteSpace(name) ? "Defenders Win!" : $"{name} Wins!";
         }
         else

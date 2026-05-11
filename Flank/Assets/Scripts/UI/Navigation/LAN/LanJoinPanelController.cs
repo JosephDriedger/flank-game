@@ -175,6 +175,14 @@ public sealed class LanJoinPanelController : MonoBehaviour
             return;
         }
 
+        // Ensure the client machine has LAN settings so post-game display is correct.
+        if (GameSettingsManager.Instance != null)
+        {
+            GameSettings s = GameSettings.CreateDefault();
+            s.mode = GameMode.Lan;
+            GameSettingsManager.Instance.Set(s);
+        }
+
         // Only NOW do we open lobby.
         if (panelManager != null && lanLobbyPanel != null)
         {
