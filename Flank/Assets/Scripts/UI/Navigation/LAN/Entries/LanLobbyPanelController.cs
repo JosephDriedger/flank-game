@@ -139,12 +139,12 @@ public sealed class LanLobbyPanelController : MonoBehaviour
 
         if (ipAddressText != null)
         {
-            ipAddressText.text = ipToShow;
+            ipAddressText.text = $"IP Address: {ipToShow}";
         }
 
         if (portText != null)
         {
-            portText.text = LanSessionConfig.HostPort.ToString();
+            portText.text = $"Port: {LanSessionConfig.HostPort}";
         }
     }
 

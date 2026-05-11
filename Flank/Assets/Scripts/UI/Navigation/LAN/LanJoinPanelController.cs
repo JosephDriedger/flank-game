@@ -22,6 +22,7 @@ public sealed class LanJoinPanelController : MonoBehaviour
 
     [Header("Join Behavior")]
     [SerializeField] private float connectTimeoutSeconds = 10.0f;
+    [SerializeField] private TMP_Text statusText;
 
     private Coroutine connectRoutine;
     private bool isConnecting;
@@ -60,6 +61,8 @@ public sealed class LanJoinPanelController : MonoBehaviour
 
     private void OnEnable()
     {
+        SetStatus(string.Empty);
+
         if (ipAddressInput != null && string.IsNullOrWhiteSpace(ipAddressInput.text))
         {
             ipAddressInput.text = LanSessionConfig.JoinIpAddress;
@@ -126,6 +129,7 @@ public sealed class LanJoinPanelController : MonoBehaviour
         if (!started)
         {
             CleanupConnectAttempt();
+            SetStatus("Failed to start connection.");
             return;
         }
 
@@ -134,9 +138,8 @@ public sealed class LanJoinPanelController : MonoBehaviour
             connectTimeoutSeconds,
             () =>
             {
-                Debug.LogWarning("LAN join timed out (staying on Join panel).");
                 CleanupConnectAttempt();
-                // Stay on Join. (Optional: show an error label if you have one.)
+                SetStatus("Connection timed out. Check the IP, port, and that the host is running.");
             });
     }
 
@@ -199,9 +202,8 @@ public sealed class LanJoinPanelController : MonoBehaviour
             return;
         }
 
-        Debug.LogWarning("Disconnected during join attempt (staying on Join panel).");
         CleanupConnectAttempt();
-        // Stay on Join panel.
+        SetStatus("Connection refused or lost. Check the IP and port.");
     }
 
     private void CleanupConnectAttempt(bool keepConnection = false)
@@ -276,5 +278,13 @@ public sealed class LanJoinPanelController : MonoBehaviour
         ushort currentPort = this.ParsePortOrDefault(portInput, 0);
 
         return currentIp == this.connectAttemptIp && currentPort == this.connectAttemptPort;
+    }
+
+    private void SetStatus(string message)
+    {
+        if (statusText != null)
+        {
+            statusText.text = message;
+        }
     }
 }
