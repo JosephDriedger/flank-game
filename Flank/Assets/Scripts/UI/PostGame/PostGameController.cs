@@ -164,9 +164,15 @@ public sealed class PostGameController : MonoBehaviour
         string result = LoadString(PostGameKeys.LastGameResult, string.Empty);
         GameSettings settings = LoadLastPlayedSettings();
 
-        // In network modes the client may have stale single-player settings
-        // (including AI display names). Always use generic role names there.
-        bool useRoleNames = settings == null ||
+        // If the NGO session is still live, use generic role names regardless of what
+        // the saved settings say — the client's LastPlayedSettingsJson may be stale
+        // single-player data with AI display names.
+        bool inLiveSession = NetworkManager.Singleton != null &&
+                             (NetworkManager.Singleton.IsServer ||
+                              NetworkManager.Singleton.IsConnectedClient);
+
+        bool useRoleNames = inLiveSession ||
+                            settings == null ||
                             settings.mode == GameMode.Lan ||
                             settings.mode == GameMode.OnlineMatchmaking;
 

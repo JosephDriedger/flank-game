@@ -10,6 +10,7 @@ public sealed class LanNetworkService : MonoBehaviour
 
     public bool IsPostGameTransition { get; set; }
     public bool IsViewBoard { get; set; }
+    public string LastGameSnapshotJson { get; set; }
 
     private readonly System.Collections.Generic.Dictionary<Coroutine, bool> _trackedCoroutines =
         new System.Collections.Generic.Dictionary<Coroutine, bool>();

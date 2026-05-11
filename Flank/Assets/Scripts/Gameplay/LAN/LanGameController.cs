@@ -98,15 +98,28 @@ public sealed class LanGameController : NetworkBehaviour
             _turnSystem = new TurnSystem(new TurnRules(), new MoveBudget());
             _rules = new RulesEngine();
 
-            int timeLimitSeconds = 0;
-            if (GameSettingsManager.Instance?.Current != null)
+            NetworkManager.OnClientDisconnectCallback += HandleRemoteClientDisconnected;
+
+            bool isViewBoard = LanNetworkService.Instance != null &&
+                               LanNetworkService.Instance.IsViewBoard &&
+                               !string.IsNullOrWhiteSpace(LanNetworkService.Instance.LastGameSnapshotJson);
+
+            if (isViewBoard)
             {
-                timeLimitSeconds = (int)GameSettingsManager.Instance.Current.timeLimit * 60;
+                _networkTimeLimitSeconds.Value = 0;
+                _snapshotJson.Value = new FixedString4096Bytes(LanNetworkService.Instance.LastGameSnapshotJson);
             }
+            else
+            {
+                int timeLimitSeconds = 0;
+                if (GameSettingsManager.Instance?.Current != null)
+                {
+                    timeLimitSeconds = (int)GameSettingsManager.Instance.Current.timeLimit * 60;
+                }
 
-            _networkTimeLimitSeconds.Value = timeLimitSeconds;
-
-            NewGameServer();
+                _networkTimeLimitSeconds.Value = timeLimitSeconds;
+                NewGameServer();
+            }
         }
 
         if (_snapshotJson.Value.Length > 0)
@@ -119,6 +132,54 @@ public sealed class LanGameController : NetworkBehaviour
     {
         base.OnDestroy();
         _snapshotJson.OnValueChanged -= HandleSnapshotChanged;
+
+        if (NetworkManager.Singleton != null)
+        {
+            NetworkManager.Singleton.OnClientDisconnectCallback -= HandleRemoteClientDisconnected;
+        }
+    }
+
+    private void HandleRemoteClientDisconnected(ulong clientId)
+    {
+        if (!IsServer || NetworkManager.Singleton == null)
+        {
+            return;
+        }
+
+        // Only react to remote clients, not the host itself.
+        if (clientId == NetworkManager.Singleton.LocalClientId)
+        {
+            return;
+        }
+
+        // Don't interfere during a post-game scene transition.
+        if (LanNetworkService.Instance != null && LanNetworkService.Instance.IsPostGameTransition)
+        {
+            return;
+        }
+
+        // A player left mid-game. Save the correct return panel for the host then shut down.
+        bool isOnline = GameSettingsManager.Instance?.Current?.mode == GameMode.OnlineMatchmaking;
+        string panelName = isOnline ? "OnlineHostPanel" : "LanHostPanel";
+
+        if (SaveSystem.Instance != null)
+        {
+            SaveSystem.Instance.SaveString("PanelManager.LastPanelName", panelName);
+        }
+        else
+        {
+            PlayerPrefs.SetString("PanelManager.LastPanelName", panelName);
+            PlayerPrefs.Save();
+        }
+
+        // Flag before Shutdown so LanNetworkService's disconnect handler doesn't double-navigate.
+        if (LanNetworkService.Instance != null)
+        {
+            LanNetworkService.Instance.IsPostGameTransition = true;
+        }
+
+        LanNetworkService.Instance?.Shutdown();
+        SceneRouter.Instance?.GoToNavigation(openLastPanel: true);
     }
 
     public bool IsLocalPlayersTurn()
@@ -432,6 +493,12 @@ public sealed class LanGameController : NetworkBehaviour
         }
 
         _snapshotJson.Value = new FixedString4096Bytes(json);
+
+        // Persist the final state so View Board can restore it after the PostGame scene.
+        if (_state.result != GameResult.None && LanNetworkService.Instance != null)
+        {
+            LanNetworkService.Instance.LastGameSnapshotJson = json;
+        }
     }
 
     private void HandleSnapshotChanged(FixedString4096Bytes previous, FixedString4096Bytes next)
