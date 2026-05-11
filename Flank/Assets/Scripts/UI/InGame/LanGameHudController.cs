@@ -17,6 +17,7 @@ public sealed class LanGameHudController : MonoBehaviour
     [SerializeField] private TMP_Text attackerTimerText;
     [SerializeField] private TMP_Text defenderTimerText;
     [SerializeField] private Button endTurnButton;
+    [SerializeField] private Button quitButton;
 
     private LanGameController lanGame;
     private bool isBound;
@@ -37,6 +38,11 @@ public sealed class LanGameHudController : MonoBehaviour
         {
             endTurnButton.onClick.AddListener(OnEndTurnClicked);
         }
+
+        if (quitButton != null)
+        {
+            quitButton.onClick.AddListener(OnQuitClicked);
+        }
     }
 
     private void OnDisable()
@@ -44,6 +50,11 @@ public sealed class LanGameHudController : MonoBehaviour
         if (endTurnButton != null)
         {
             endTurnButton.onClick.RemoveListener(OnEndTurnClicked);
+        }
+
+        if (quitButton != null)
+        {
+            quitButton.onClick.RemoveListener(OnQuitClicked);
         }
 
         Unbind();
@@ -136,6 +147,11 @@ public sealed class LanGameHudController : MonoBehaviour
     private void OnEndTurnClicked()
     {
         lanGame?.RequestEndTurnEarly();
+    }
+
+    private void OnQuitClicked()
+    {
+        lanGame?.QuitToLobbyServerRpc();
     }
 
     // ------------------------------------------------------------

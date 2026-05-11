@@ -282,6 +282,7 @@ MonoBehaviour:
   attackerTimerText: {fileID: 345516397}
   defenderTimerText: {fileID: 637241758}
   endTurnButton: {fileID: 865065082}
+  quitButton: {fileID: 1301488695}
 --- !u!1 &126381562
 GameObject:
   m_ObjectHideFlags: 0

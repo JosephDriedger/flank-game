@@ -1,3 +1,4 @@
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -30,6 +31,16 @@ public sealed class BackToPostGameButton : MonoBehaviour
 
     private void HandleClick()
     {
+        if (IsNetworkMode())
+        {
+            LanGameController lanGame = FindFirstObjectByType<LanGameController>();
+            if (lanGame != null)
+            {
+                lanGame.BackToPostGameServerRpc();
+            }
+            return;
+        }
+
         SetLaunchModeNormal();
 
         if (SceneRouter.Instance != null)
@@ -39,6 +50,13 @@ public sealed class BackToPostGameButton : MonoBehaviour
         }
 
         SceneManager.LoadScene(postGameSceneName);
+    }
+
+    private static bool IsNetworkMode()
+    {
+        return LanNetworkService.Instance != null &&
+               NetworkManager.Singleton != null &&
+               (NetworkManager.Singleton.IsServer || NetworkManager.Singleton.IsConnectedClient);
     }
 
     private void SetLaunchModeNormal()

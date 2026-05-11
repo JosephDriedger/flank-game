@@ -12,6 +12,8 @@ public sealed class LanGameController : NetworkBehaviour
     [Header("Scene")]
     [SerializeField] private BoardView _boardView;
     [SerializeField] private TurnPerspectiveController _turnPerspective;
+    [SerializeField] private string _postGameSceneName = "PostGame";
+    [SerializeField] private string _navigationSceneName = "NavigationScene";
 
     private BoardModel _board;
     private GameState _state;
@@ -811,5 +813,52 @@ public sealed class LanGameController : NetworkBehaviour
         }
 
         return false;
+    }
+
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    public void QuitToLobbyServerRpc()
+    {
+        if (NetworkManager.Singleton == null)
+        {
+            return;
+        }
+
+        if (LanNetworkService.Instance != null)
+        {
+            LanNetworkService.Instance.IsViewBoard = false;
+            LanNetworkService.Instance.IsPostGameTransition = true;
+        }
+
+        string panelName = "LanLobbyPanel";
+        if (SaveSystem.Instance != null)
+        {
+            SaveSystem.Instance.SaveString("PanelManager.LastPanelName", panelName);
+        }
+        else
+        {
+            PlayerPrefs.SetString("PanelManager.LastPanelName", panelName);
+            PlayerPrefs.Save();
+        }
+
+        NetworkManager.Singleton.SceneManager.LoadScene(
+            _navigationSceneName, UnityEngine.SceneManagement.LoadSceneMode.Single);
+    }
+
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    public void BackToPostGameServerRpc()
+    {
+        if (NetworkManager.Singleton == null)
+        {
+            return;
+        }
+
+        if (LanNetworkService.Instance != null)
+        {
+            LanNetworkService.Instance.IsViewBoard = false;
+            LanNetworkService.Instance.IsPostGameTransition = true;
+        }
+
+        NetworkManager.Singleton.SceneManager.LoadScene(
+            _postGameSceneName, UnityEngine.SceneManagement.LoadSceneMode.Single);
     }
 }

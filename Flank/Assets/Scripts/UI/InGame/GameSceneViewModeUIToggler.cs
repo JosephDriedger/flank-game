@@ -23,6 +23,12 @@ public sealed class GameSceneViewModeUiToggler : MonoBehaviour
 
     private bool IsViewBoardMode()
     {
+        // LAN/online view board uses a runtime flag rather than PlayerPrefs.
+        if (LanNetworkService.Instance != null && LanNetworkService.Instance.IsViewBoard)
+        {
+            return true;
+        }
+
         int fallback = (int)GameLaunchMode.Normal;
 
         if (SaveSystem.Instance != null)
