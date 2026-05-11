@@ -32,10 +32,12 @@ public sealed class LanLobbyPanelController : MonoBehaviour
     private readonly List<LanPlayerEntryUI> entries = new List<LanPlayerEntryUI>();
     private bool localReady;
     private bool isLeavingLobby;
+    private bool isStartingGame;
 
     private void OnEnable()
     {
         this.isLeavingLobby = false;
+        this.isStartingGame = false;
 
         // SAFETY: Lobby should not be visible unless connected (or host).
         if (NetworkManager.Singleton == null ||
@@ -310,6 +312,11 @@ public sealed class LanLobbyPanelController : MonoBehaviour
 
     private void HandleStartGame()
     {
+        if (this.isStartingGame)
+        {
+            return;
+        }
+
         if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsHost)
         {
             return;
@@ -320,6 +327,12 @@ public sealed class LanLobbyPanelController : MonoBehaviour
             return;
         }
 
+        if (NetworkManager.Singleton.SceneManager == null)
+        {
+            return;
+        }
+
+        this.isStartingGame = true;
         NetworkManager.Singleton.SceneManager.LoadScene(gameSceneName, UnityEngine.SceneManagement.LoadSceneMode.Single);
     }
 

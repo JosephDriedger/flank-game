@@ -8,6 +8,8 @@ public sealed class LanNetworkService : MonoBehaviour
 {
     public static LanNetworkService Instance { get; private set; }
 
+    public bool IsPostGameTransition { get; set; }
+
     private readonly System.Collections.Generic.Dictionary<Coroutine, bool> _trackedCoroutines =
         new System.Collections.Generic.Dictionary<Coroutine, bool>();
 
@@ -56,6 +58,7 @@ public sealed class LanNetworkService : MonoBehaviour
             return false;
         }
 
+        IsPostGameTransition = false;
         EnsureDisconnectSubscription();
 
         if (_transport == null)
@@ -87,6 +90,7 @@ public sealed class LanNetworkService : MonoBehaviour
             return false;
         }
 
+        IsPostGameTransition = false;
         EnsureDisconnectSubscription();
 
         if (_transport == null)
@@ -184,6 +188,12 @@ public sealed class LanNetworkService : MonoBehaviour
 
         // Only react for local client.
         if (clientId != NetworkManager.Singleton.LocalClientId)
+        {
+            return;
+        }
+
+        // Both sides navigate to PostGame independently; suppress the fallback-to-lobby.
+        if (IsPostGameTransition)
         {
             return;
         }

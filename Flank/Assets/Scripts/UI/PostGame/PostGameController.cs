@@ -86,6 +86,8 @@ public sealed class PostGameController : MonoBehaviour
 
     private void HandleExit()
     {
+        LanNetworkService.Instance?.Shutdown();
+
         if (SceneRouter.Instance != null)
         {
             SceneRouter.Instance.GoToNavigation(openLastPanel: true);

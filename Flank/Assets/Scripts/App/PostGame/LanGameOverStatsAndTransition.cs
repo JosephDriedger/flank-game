@@ -41,22 +41,32 @@ public sealed class LanGameOverStatsAndTransition : GameOverTransitionBase
             return;
         }
 
-        lanGameController.StateChanged -= OnGameStateChanged;
-        lanGameController.StateChanged += OnGameStateChanged;
+        lanGameController.StateChanged -= HandleLanStateChanged;
+        lanGameController.StateChanged += HandleLanStateChanged;
 
         if (lanGameController.State != null)
         {
-            OnGameStateChanged(lanGameController.State);
+            HandleLanStateChanged(lanGameController.State);
         }
 
         _isBound = true;
+    }
+
+    private void HandleLanStateChanged(GameState state)
+    {
+        if (state != null && state.result != GameResult.None && LanNetworkService.Instance != null)
+        {
+            LanNetworkService.Instance.IsPostGameTransition = true;
+        }
+
+        OnGameStateChanged(state);
     }
 
     private void Unbind()
     {
         if (lanGameController != null)
         {
-            lanGameController.StateChanged -= OnGameStateChanged;
+            lanGameController.StateChanged -= HandleLanStateChanged;
         }
 
         lanGameController = null;
