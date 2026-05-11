@@ -1,4 +1,5 @@
 using TMPro;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -38,6 +39,14 @@ public sealed class PostGameController : MonoBehaviour
         {
             exitGameButton.onClick.AddListener(HandleExit);
         }
+
+        // In network mode only the host can initiate Play Again or View Board.
+        if (IsNetworkMode())
+        {
+            bool isHost = NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer;
+            if (playAgainButton != null) playAgainButton.interactable = isHost;
+            if (viewBoardButton != null) viewBoardButton.interactable = isHost;
+        }
     }
 
     private void OnDisable()
@@ -60,6 +69,17 @@ public sealed class PostGameController : MonoBehaviour
 
     private void HandlePlayAgain()
     {
+        if (IsNetworkMode())
+        {
+            if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer)
+            {
+                if (LanNetworkService.Instance != null) LanNetworkService.Instance.IsViewBoard = false;
+                NetworkManager.Singleton.SceneManager.LoadScene(
+                    gameSceneName, LoadSceneMode.Single);
+            }
+            return;
+        }
+
         RestoreLastPlayedSettingsIfAvailable();
 
         if (SceneRouter.Instance != null)
@@ -73,6 +93,17 @@ public sealed class PostGameController : MonoBehaviour
 
     private void HandleViewBoard()
     {
+        if (IsNetworkMode())
+        {
+            if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer)
+            {
+                if (LanNetworkService.Instance != null) LanNetworkService.Instance.IsViewBoard = true;
+                NetworkManager.Singleton.SceneManager.LoadScene(
+                    gameSceneName, LoadSceneMode.Single);
+            }
+            return;
+        }
+
         SaveString(PostGameKeys.LaunchMode, ((int)GameLaunchMode.ViewBoard).ToString());
 
         if (SceneRouter.Instance != null)

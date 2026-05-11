@@ -9,6 +9,7 @@ public sealed class LanNetworkService : MonoBehaviour
     public static LanNetworkService Instance { get; private set; }
 
     public bool IsPostGameTransition { get; set; }
+    public bool IsViewBoard { get; set; }
 
     private readonly System.Collections.Generic.Dictionary<Coroutine, bool> _trackedCoroutines =
         new System.Collections.Generic.Dictionary<Coroutine, bool>();
@@ -59,6 +60,7 @@ public sealed class LanNetworkService : MonoBehaviour
         }
 
         IsPostGameTransition = false;
+        IsViewBoard = false;
         EnsureDisconnectSubscription();
 
         if (_transport == null)
@@ -91,6 +93,7 @@ public sealed class LanNetworkService : MonoBehaviour
         }
 
         IsPostGameTransition = false;
+        IsViewBoard = false;
         EnsureDisconnectSubscription();
 
         if (_transport == null)

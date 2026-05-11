@@ -188,7 +188,7 @@ public abstract class GameOverTransitionBase : MonoBehaviour
         return PlayerPrefs.GetInt(PostGameKeys.LaunchMode, fallback) == (int)GameLaunchMode.ViewBoard;
     }
 
-    private void LoadPostGame()
+    protected virtual void LoadPostGame()
     {
         if (string.IsNullOrWhiteSpace(postGameSceneName))
         {

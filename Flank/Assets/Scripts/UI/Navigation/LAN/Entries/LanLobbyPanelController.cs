@@ -339,6 +339,7 @@ public sealed class LanLobbyPanelController : MonoBehaviour
         }
 
         this.isStartingGame = true;
+        if (LanNetworkService.Instance != null) LanNetworkService.Instance.IsViewBoard = false;
         NetworkManager.Singleton.SceneManager.LoadScene(gameSceneName, UnityEngine.SceneManagement.LoadSceneMode.Single);
     }
 
