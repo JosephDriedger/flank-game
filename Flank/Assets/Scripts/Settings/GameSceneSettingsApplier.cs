@@ -26,6 +26,15 @@ public sealed class GameSceneSettingsApplier : MonoBehaviour
             settings = GameSettings.CreateDefault();
         }
 
+        // In network modes the LanGameController drives everything.
+        // Disable AI controllers so they cannot interfere.
+        if (settings.mode == GameMode.Lan || settings.mode == GameMode.OnlineMatchmaking)
+        {
+            if (_attackerAiController != null) _attackerAiController.enabled = false;
+            if (_defenderAiController != null) _defenderAiController.enabled = false;
+            return;
+        }
+
         MonoBehaviour attackerController = PickController(
             settings.attacker,
             _attackerHumanController,

@@ -86,7 +86,11 @@ public sealed class PostGameController : MonoBehaviour
 
     private void HandleExit()
     {
-        LanNetworkService.Instance?.Shutdown();
+        if (IsNetworkMode())
+        {
+            // Return to the shared lobby panel; stay connected.
+            SaveString("PanelManager.LastPanelName", "LanLobbyPanel");
+        }
 
         if (SceneRouter.Instance != null)
         {
@@ -95,6 +99,17 @@ public sealed class PostGameController : MonoBehaviour
         }
 
         SceneManager.LoadScene(navigationSceneName);
+    }
+
+    private static bool IsNetworkMode()
+    {
+        if (GameSettingsManager.Instance == null || GameSettingsManager.Instance.Current == null)
+        {
+            return false;
+        }
+
+        GameMode mode = GameSettingsManager.Instance.Current.mode;
+        return mode == GameMode.Lan || mode == GameMode.OnlineMatchmaking;
     }
 
     private void RestoreLastPlayedSettingsIfAvailable()

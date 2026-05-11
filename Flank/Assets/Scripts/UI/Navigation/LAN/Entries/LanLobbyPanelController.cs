@@ -39,6 +39,12 @@ public sealed class LanLobbyPanelController : MonoBehaviour
         this.isLeavingLobby = false;
         this.isStartingGame = false;
 
+        // Re-entering the lobby after post-game; restore normal disconnect handling.
+        if (LanNetworkService.Instance != null)
+        {
+            LanNetworkService.Instance.IsPostGameTransition = false;
+        }
+
         // SAFETY: Lobby should not be visible unless connected (or host).
         if (NetworkManager.Singleton == null ||
             (!NetworkManager.Singleton.IsHost && !NetworkManager.Singleton.IsConnectedClient))
