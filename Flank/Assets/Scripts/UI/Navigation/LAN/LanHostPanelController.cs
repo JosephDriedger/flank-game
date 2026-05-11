@@ -53,6 +53,7 @@ public sealed class LanHostPanelController : MonoBehaviour
         if (ipAddressInput != null)
         {
             ipAddressInput.text = localIp;
+            ipAddressInput.interactable = false;
         }
 
         if (portInput != null && string.IsNullOrWhiteSpace(portInput.text))

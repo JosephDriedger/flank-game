@@ -119,14 +119,9 @@ public sealed class LanNetworkService : MonoBehaviour
         }
     }
 
-    public Coroutine RunJoinTimeout(MonoBehaviour owner, float seconds, Action onTimeout)
+    public Coroutine RunJoinTimeout(float seconds, Action onTimeout)
     {
-        if (owner == null)
-        {
-            return null;
-        }
-
-        Coroutine c = owner.StartCoroutine(JoinTimeoutRoutine(seconds, onTimeout));
+        Coroutine c = StartCoroutine(JoinTimeoutRoutine(seconds, onTimeout));
         if (c != null)
         {
             _trackedCoroutines[c] = true;

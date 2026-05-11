@@ -21,7 +21,7 @@ public sealed class LanJoinPanelController : MonoBehaviour
     [SerializeField] private GameObject lanLobbyPanel;
 
     [Header("Join Behavior")]
-    [SerializeField] private float connectTimeoutSeconds = 3.0f;
+    [SerializeField] private float connectTimeoutSeconds = 10.0f;
 
     private Coroutine connectRoutine;
     private bool isConnecting;
@@ -131,7 +131,6 @@ public sealed class LanJoinPanelController : MonoBehaviour
 
         // Start timeout (but DO NOT switch panels here).
         connectRoutine = LanNetworkService.Instance.RunJoinTimeout(
-            this,
             connectTimeoutSeconds,
             () =>
             {
