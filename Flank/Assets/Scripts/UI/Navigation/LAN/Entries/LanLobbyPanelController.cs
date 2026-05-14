@@ -52,9 +52,12 @@ public sealed class LanLobbyPanelController : MonoBehaviour
 
         // SAFETY: Lobby should not be visible unless connected (or host).
         // Bypass when arriving via a controlled NGO transition — connection is guaranteed.
+        // Use IsClient rather than IsConnectedClient: IsClient stays true throughout the
+        // NGO scene-load handshake, whereas IsConnectedClient can briefly return false
+        // during the transition window, causing a spurious redirect to the join panel.
         if (!wasControlledReturn &&
             (NetworkManager.Singleton == null ||
-             (!NetworkManager.Singleton.IsHost && !NetworkManager.Singleton.IsConnectedClient)))
+             (!NetworkManager.Singleton.IsHost && !NetworkManager.Singleton.IsClient)))
         {
             if (panelManager == null)
             {

@@ -158,11 +158,8 @@ public class PanelManager : MonoBehaviour
 
     private static string GetLastPanelName()
     {
-        if (!string.IsNullOrWhiteSpace(_lastPanelName))
-        {
-            return _lastPanelName;
-        }
-
+        // Always read PlayerPrefs first so external writes (e.g. from network RPCs
+        // before the scene loads) are respected and override the cached static value.
         if (PlayerPrefs.HasKey(LastPanelPrefsKey))
         {
             _lastPanelName = PlayerPrefs.GetString(LastPanelPrefsKey, string.Empty);
