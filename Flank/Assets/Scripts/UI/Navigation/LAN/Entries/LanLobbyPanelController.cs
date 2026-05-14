@@ -153,7 +153,12 @@ public sealed class LanLobbyPanelController : MonoBehaviour
             lobbyTitleText.text = $"Lobby - {LanSessionConfig.RoomName}";
         }
 
-        string ipToShow = LanSessionConfig.HostIpAddress;
+        // Host wrote HostIpAddress/HostPort when starting.
+        // Client wrote JoinIpAddress/JoinPort when connecting.
+        // Use whichever set belongs to the local player so the display is always correct.
+        bool isHost = NetworkManager.Singleton != null && NetworkManager.Singleton.IsHost;
+        string ipToShow   = isHost ? LanSessionConfig.HostIpAddress : LanSessionConfig.JoinIpAddress;
+        ushort portToShow = isHost ? LanSessionConfig.HostPort       : LanSessionConfig.JoinPort;
 
         if (ipAddressText != null)
         {
@@ -162,7 +167,7 @@ public sealed class LanLobbyPanelController : MonoBehaviour
 
         if (portText != null)
         {
-            portText.text = $"Port: {LanSessionConfig.HostPort}";
+            portText.text = $"Port: {portToShow}";
         }
     }
 
