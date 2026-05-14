@@ -818,25 +818,23 @@ public sealed class LanGameController : NetworkBehaviour
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void QuitToLobbyServerRpc()
     {
-        if (!IsServer)
+        if (!IsServer || NetworkManager.Singleton == null)
         {
             return;
         }
 
-        QuitToLobbyClientRpc();
-    }
+        // Prime non-server clients with the correct flags BEFORE the NGO scene load
+        // message arrives, so LanLobbyPanelController's safety check is bypassed there too.
+        PrepareQuitToLobbyClientRpc();
 
-    [Rpc(SendTo.Everyone)]
-    private void QuitToLobbyClientRpc()
-    {
+        // Set server-side flags.
         if (LanNetworkService.Instance != null)
         {
             LanNetworkService.Instance.IsViewBoard = false;
             LanNetworkService.Instance.IsPostGameTransition = true;
         }
 
-        // LanLobbyPanel should already be saved as the last panel from the lobby session,
-        // but re-save to PlayerPrefs explicitly since PanelManager reads from there.
+        // PanelManager.GetLastPanelName() reads PlayerPrefs directly, so always write there.
         const string panelName = "LanLobbyPanel";
         PlayerPrefs.SetString("PanelManager.LastPanelName", panelName);
         PlayerPrefs.Save();
@@ -845,13 +843,28 @@ public sealed class LanGameController : NetworkBehaviour
             SaveSystem.Instance.SaveString("PanelManager.LastPanelName", panelName);
         }
 
-        if (SceneRouter.Instance != null)
+        // Use NGO's scene manager so both players load together and stay connected.
+        NetworkManager.Singleton.SceneManager.LoadScene(
+            _navigationSceneName, UnityEngine.SceneManagement.LoadSceneMode.Single);
+    }
+
+    // Sent to non-server clients only; the server sets its own flags inline above.
+    [Rpc(SendTo.NotServer)]
+    private void PrepareQuitToLobbyClientRpc()
+    {
+        if (LanNetworkService.Instance != null)
         {
-            SceneRouter.Instance.GoToNavigation(openLastPanel: true);
-            return;
+            LanNetworkService.Instance.IsViewBoard = false;
+            LanNetworkService.Instance.IsPostGameTransition = true;
         }
 
-        UnityEngine.SceneManagement.SceneManager.LoadScene(_navigationSceneName);
+        const string panelName = "LanLobbyPanel";
+        PlayerPrefs.SetString("PanelManager.LastPanelName", panelName);
+        PlayerPrefs.Save();
+        if (SaveSystem.Instance != null)
+        {
+            SaveSystem.Instance.SaveString("PanelManager.LastPanelName", panelName);
+        }
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]

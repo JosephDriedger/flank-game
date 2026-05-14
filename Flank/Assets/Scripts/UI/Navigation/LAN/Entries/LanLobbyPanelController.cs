@@ -39,15 +39,22 @@ public sealed class LanLobbyPanelController : MonoBehaviour
         this.isLeavingLobby = false;
         this.isStartingGame = false;
 
-        // Re-entering the lobby after post-game; restore normal disconnect handling.
+        // Capture before reset: true when we arrived via a controlled network navigation
+        // (quit-to-lobby), so the safety redirect below should be skipped.
+        bool wasControlledReturn = LanNetworkService.Instance != null &&
+                                   LanNetworkService.Instance.IsPostGameTransition;
+
+        // Restore normal disconnect handling now that the lobby is visible.
         if (LanNetworkService.Instance != null)
         {
             LanNetworkService.Instance.IsPostGameTransition = false;
         }
 
         // SAFETY: Lobby should not be visible unless connected (or host).
-        if (NetworkManager.Singleton == null ||
-            (!NetworkManager.Singleton.IsHost && !NetworkManager.Singleton.IsConnectedClient))
+        // Bypass when arriving via a controlled NGO transition — connection is guaranteed.
+        if (!wasControlledReturn &&
+            (NetworkManager.Singleton == null ||
+             (!NetworkManager.Singleton.IsHost && !NetworkManager.Singleton.IsConnectedClient)))
         {
             if (panelManager == null)
             {
