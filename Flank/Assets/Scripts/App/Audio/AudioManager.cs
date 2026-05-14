@@ -23,7 +23,25 @@ public sealed class AudioManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
 
+        LoadSavedVolumes();
         ApplyVolumes();
+    }
+
+    /// <summary>
+    /// Reads persisted volume values written by SettingsPanelController.
+    /// SaveSystem.Instance may not be ready yet in Awake, so we read via
+    /// PlayerPrefs.GetString directly — the same underlying storage SaveSystem
+    /// uses — and fall back to 1.0 if no value has been saved yet.
+    /// </summary>
+    private void LoadSavedVolumes()
+    {
+        musicVolume = ParseFloat(PlayerPrefs.GetString(SettingsKeys.MusicVolume, string.Empty), 1f);
+        sfxVolume   = ParseFloat(PlayerPrefs.GetString(SettingsKeys.SFXVolume,   string.Empty), 1f);
+    }
+
+    private static float ParseFloat(string raw, float fallback)
+    {
+        return !string.IsNullOrEmpty(raw) && float.TryParse(raw, out float v) ? v : fallback;
     }
 
     private void ApplyVolumes()
