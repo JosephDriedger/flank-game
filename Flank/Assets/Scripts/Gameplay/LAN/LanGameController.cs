@@ -23,6 +23,10 @@ public sealed class LanGameController : NetworkBehaviour
 
     private bool _boardViewBuilt;
 
+    // Server-side turn counter — mirrors GameOverTransitionBase._totalTurns so the
+    // correct value can be pushed to clients via RPC before the PostGame scene loads.
+    private int _serverTotalTurns;
+
     private readonly NetworkVariable<FixedString4096Bytes> _snapshotJson =
         new NetworkVariable<FixedString4096Bytes>(
             new FixedString4096Bytes(),
@@ -333,6 +337,7 @@ public sealed class LanGameController : NetworkBehaviour
         _turnSystem.BeginTurn(_state, Role.Attacker);
         _serverAttackerTimeRemaining = _networkTimeLimitSeconds.Value;
         _serverDefenderTimeRemaining = _networkTimeLimitSeconds.Value;
+        _serverTotalTurns = 1; // first attacker turn
 
         AddLog($"{SystemTag}New game started.{EndTag}");
         AddLog($"{AttackerTag}Attacker turn started.{EndTag}");
@@ -458,6 +463,8 @@ public sealed class LanGameController : NetworkBehaviour
 
     private void BeginTurnServer(Role role)
     {
+        _serverTotalTurns++;
+
         // Re-evaluate result on turn start (win/lose can occur when a turn advances).
         _turnSystem.BeginTurn(_state, role);
         _state.result = _rules.GetGameResult(_state);
@@ -484,7 +491,7 @@ public sealed class LanGameController : NetworkBehaviour
 
     private void PublishSnapshotServer()
     {
-        GameStateSnapshot snap = BuildSnapshot(_state);
+        GameStateSnapshot snap = BuildSnapshot(_state, _serverTotalTurns);
         snap.attackerTimeRemaining = _serverAttackerTimeRemaining;
         snap.defenderTimeRemaining = _serverDefenderTimeRemaining;
         string json = JsonUtility.ToJson(snap);
@@ -494,13 +501,73 @@ public sealed class LanGameController : NetworkBehaviour
             Debug.LogWarning($"[LAN] Snapshot JSON is {json.Length} chars — approaching the 4096-byte NGO limit.");
         }
 
-        _snapshotJson.Value = new FixedString4096Bytes(json);
-
-        // Persist the final state so View Board can restore it after the PostGame scene.
-        if (_state.result != GameResult.None && LanNetworkService.Instance != null)
+        // Push ALL PostGame stats to clients BEFORE updating _snapshotJson.
+        //
+        // Why: setting _snapshotJson.Value fires HandleSnapshotChanged synchronously on the
+        // server, which cascades through LanGameOverStatsAndTransition → LoadPostGame →
+        // SceneManager.LoadScene in the same call stack. The NGO scene-load message therefore
+        // reaches clients before the NetworkVariable delta does, so clients destroy
+        // LanGameController before HandleSnapshotChanged can fire and save anything.
+        // RPCs queued before the snapshot write arrive at clients first (reliable-sequenced
+        // transport preserves send order), guaranteeing PostGameController reads correct data.
+        if (_state.result != GameResult.None)
         {
-            LanNetworkService.Instance.LastGameSnapshotJson = json;
+            PushPostGameStatsClientRpc(
+                new FixedString64Bytes(_state.result.ToString()),
+                _serverTotalTurns,
+                CountFlagsRemaining(_state),
+                CountAttackersRemaining(_state));
+
+            if (LanNetworkService.Instance != null)
+            {
+                LanNetworkService.Instance.LastGameSnapshotJson = json;
+            }
         }
+
+        _snapshotJson.Value = new FixedString4096Bytes(json);
+    }
+
+    [Rpc(SendTo.NotServer)]
+    private void PushPostGameStatsClientRpc(
+        FixedString64Bytes result, int totalTurns, int flagsRemaining, int attackersRemaining)
+    {
+        string resultStr = result.ToString();
+
+        if (SaveSystem.Instance != null)
+        {
+            SaveSystem.Instance.SaveString(PostGameKeys.LastGameResult, resultStr);
+            SaveSystem.Instance.SaveString(PostGameKeys.TotalTurns, totalTurns.ToString());
+            SaveSystem.Instance.SaveString(PostGameKeys.FlagsRemaining, flagsRemaining.ToString());
+            SaveSystem.Instance.SaveString(PostGameKeys.AttackersRemaining, attackersRemaining.ToString());
+        }
+        else
+        {
+            PlayerPrefs.SetString(PostGameKeys.LastGameResult, resultStr);
+            PlayerPrefs.SetInt(PostGameKeys.TotalTurns, totalTurns);
+            PlayerPrefs.SetInt(PostGameKeys.FlagsRemaining, flagsRemaining);
+            PlayerPrefs.SetInt(PostGameKeys.AttackersRemaining, attackersRemaining);
+            PlayerPrefs.Save();
+        }
+    }
+
+    private static int CountFlagsRemaining(GameState state)
+    {
+        int count = 0;
+        foreach (FlagModel f in state.flags.Values)
+        {
+            if (f != null && !f.isCaptured) count++;
+        }
+        return count;
+    }
+
+    private static int CountAttackersRemaining(GameState state)
+    {
+        int count = 0;
+        foreach (PieceModel p in state.pieces.Values)
+        {
+            if (p != null && p.role == Role.Attacker && !p.isCaptured) count++;
+        }
+        return count;
     }
 
     private void HandleSnapshotChanged(FixedString4096Bytes previous, FixedString4096Bytes next)
@@ -666,13 +733,13 @@ public sealed class LanGameController : NetworkBehaviour
         _turnPerspective.Apply(localRole, true);
     }
 
-    private static GameStateSnapshot BuildSnapshot(GameState state)
+    private static GameStateSnapshot BuildSnapshot(GameState state, int totalTurns = 0)
     {
         GameStateSnapshot snap = new GameStateSnapshot();
 
         snap.result = state.result.ToString();
         snap.currentTurn = (int)state.currentTurn;
-        snap.turns = 0;
+        snap.turns = totalTurns;
 
         if (state.turnProgress != null)
         {
@@ -879,6 +946,13 @@ public sealed class LanGameController : NetworkBehaviour
         {
             LanNetworkService.Instance.IsViewBoard = false;
             LanNetworkService.Instance.IsPostGameTransition = true;
+        }
+
+        // Clear the view-board flag on clients before the scene load so nothing
+        // downstream mistakenly treats the PostGame scene as a view-board session.
+        if (LanLobbyState.Instance != null)
+        {
+            LanLobbyState.Instance.SyncViewBoardClientRpc(false);
         }
 
         NetworkManager.Singleton.SceneManager.LoadScene(

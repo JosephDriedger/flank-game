@@ -98,6 +98,15 @@ public sealed class PostGameController : MonoBehaviour
             if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer)
             {
                 if (LanNetworkService.Instance != null) LanNetworkService.Instance.IsViewBoard = true;
+
+                // Push the flag to clients BEFORE the scene-load message so their
+                // GameSceneViewModeUiToggler.Start() sees IsViewBoard = true and shows
+                // "Back to PostGame" instead of "End Turn".
+                if (LanLobbyState.Instance != null)
+                {
+                    LanLobbyState.Instance.SyncViewBoardClientRpc(true);
+                }
+
                 NetworkManager.Singleton.SceneManager.LoadScene(
                     gameSceneName, LoadSceneMode.Single);
             }
@@ -119,8 +128,18 @@ public sealed class PostGameController : MonoBehaviour
     {
         if (IsNetworkMode())
         {
-            // Return to the shared lobby panel; stay connected.
-            SaveString("PanelManager.LastPanelName", "LanLobbyPanel");
+            // Land each player on their appropriate LAN setup panel, not the lobby
+            // (the session is ending so the lobby would show an empty disconnected state).
+            bool isHost = NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer;
+            SaveString("PanelManager.LastPanelName", isHost ? "LanHostPanel" : "LanJoinPanel");
+
+            if (LanNetworkService.Instance != null)
+            {
+                // Suppress LanNetworkService.HandleClientDisconnected's own navigation;
+                // without this flag it would fire on the local disconnect and double-navigate.
+                LanNetworkService.Instance.IsPostGameTransition = true;
+                LanNetworkService.Instance.Shutdown();
+            }
         }
 
         if (SceneRouter.Instance != null)

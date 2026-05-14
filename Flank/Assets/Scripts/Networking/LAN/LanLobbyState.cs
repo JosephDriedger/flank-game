@@ -286,6 +286,25 @@ public sealed class LanLobbyState : NetworkBehaviour
         Players[otherIdx] = other;
     }
 
+    // ============================================================
+    // SESSION-WIDE FLAGS
+    // ============================================================
+
+    /// <summary>
+    /// Sent from the server to non-server clients before a scene load so the client's
+    /// LanNetworkService.IsViewBoard matches the server's before GameSceneViewModeUiToggler
+    /// reads it in Start(). Guaranteed to arrive before the scene-load message because
+    /// RPCs are queued in send order on a reliable-sequenced transport.
+    /// </summary>
+    [Rpc(SendTo.NotServer)]
+    public void SyncViewBoardClientRpc(bool isViewBoard)
+    {
+        if (LanNetworkService.Instance != null)
+        {
+            LanNetworkService.Instance.IsViewBoard = isViewBoard;
+        }
+    }
+
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void KickServerRpc(ulong clientId)
     {
