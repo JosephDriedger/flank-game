@@ -177,6 +177,13 @@ public abstract class GameOverTransitionBase : MonoBehaviour
 
     private static bool IsViewBoardMode()
     {
+        // Offline: GameModeBootstrap captured this before ForceLaunchModeNormal() cleared PlayerPrefs.
+        if (GameModeBootstrap.EnteredAsViewBoard)
+        {
+            return true;
+        }
+
+        // Fallback: PlayerPrefs path (always Normal after ForceLaunchModeNormal, kept as safety net).
         int fallback = (int)GameLaunchMode.Normal;
 
         if (SaveSystem.Instance != null)

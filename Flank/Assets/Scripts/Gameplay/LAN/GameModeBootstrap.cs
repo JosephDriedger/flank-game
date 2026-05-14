@@ -8,13 +8,22 @@ public sealed class GameModeBootstrap : MonoBehaviour
     [SerializeField] private GameObject offlineSystemsRoot;
     [SerializeField] private GameObject lanSystemsRoot;
 
+    // True when the game scene was entered via offline "View Board" from PostGame.
+    // Captured in Awake before ForceLaunchModeNormal() wipes the PlayerPrefs flag.
+    // Used by GameController, GameSceneViewModeUiToggler, and GameOverTransitionBase.
+    public static bool EnteredAsViewBoard { get; private set; }
+
     private bool lastIsLan;
     private bool hasAppliedMode;
 
     private void Awake()
     {
-        // Always clear ViewBoard mode when entering the gameplay scene,
-        // otherwise GameOver routers will treat this as "View Board" and refuse to transition.
+        // Capture offline ViewBoard state BEFORE clearing PlayerPrefs.
+        // LAN uses LanNetworkService.IsViewBoard (runtime flag) and is unaffected.
+        EnteredAsViewBoard = ReadViewBoardFromStorage();
+
+        // Clear the PlayerPrefs flag so subsequent game-over events in the same
+        // scene load cannot mistakenly detect a ViewBoard launch.
         ForceLaunchModeNormal();
 
         // Disable BOTH roots immediately.
@@ -78,6 +87,28 @@ public sealed class GameModeBootstrap : MonoBehaviour
         {
             lanSystemsRoot.SetActive(isLan);
         }
+    }
+
+    /// <summary>
+    /// Called by BackToPostGameButton when the player leaves offline View Board mode
+    /// so that subsequent game-over events are not incorrectly suppressed.
+    /// </summary>
+    public static void ClearViewBoardEntry()
+    {
+        EnteredAsViewBoard = false;
+    }
+
+    private static bool ReadViewBoardFromStorage()
+    {
+        int fallback = (int)GameLaunchMode.Normal;
+
+        if (SaveSystem.Instance != null)
+        {
+            string raw = SaveSystem.Instance.LoadString(PostGameKeys.LaunchMode, fallback.ToString());
+            return int.TryParse(raw, out int parsed) && parsed == (int)GameLaunchMode.ViewBoard;
+        }
+
+        return PlayerPrefs.GetInt(PostGameKeys.LaunchMode, fallback) == (int)GameLaunchMode.ViewBoard;
     }
 
     private void ForceLaunchModeNormal()

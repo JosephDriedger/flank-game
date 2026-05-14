@@ -61,6 +61,9 @@ public sealed class BackToPostGameButton : MonoBehaviour
 
     private void SetLaunchModeNormal()
     {
+        // Clear the in-memory flag so any residual game-over events are not suppressed.
+        GameModeBootstrap.ClearViewBoardEntry();
+
         string value = ((int)GameLaunchMode.Normal).ToString();
 
         if (SaveSystem.Instance != null)

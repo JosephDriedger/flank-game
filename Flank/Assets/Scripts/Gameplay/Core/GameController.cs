@@ -369,8 +369,9 @@ public sealed class GameController : MonoBehaviour
 
     private bool TryLoadViewBoardSnapshot()
     {
-        int mode = LoadInt(PostGameKeys.LaunchMode, (int)GameLaunchMode.Normal);
-        if (mode != (int)GameLaunchMode.ViewBoard)
+        // GameModeBootstrap.Awake() (DefaultExecutionOrder -1000) clears the PlayerPrefs flag
+        // before this Start() runs, so read the static field it captured instead.
+        if (!GameModeBootstrap.EnteredAsViewBoard)
         {
             return false;
         }

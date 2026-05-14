@@ -23,26 +23,13 @@ public sealed class GameSceneViewModeUiToggler : MonoBehaviour
 
     private bool IsViewBoardMode()
     {
-        // LAN/online view board uses a runtime flag rather than PlayerPrefs.
+        // LAN/online: runtime flag (unaffected by ForceLaunchModeNormal).
         if (LanNetworkService.Instance != null && LanNetworkService.Instance.IsViewBoard)
         {
             return true;
         }
 
-        int fallback = (int)GameLaunchMode.Normal;
-
-        if (SaveSystem.Instance != null)
-        {
-            string raw = SaveSystem.Instance.LoadString(PostGameKeys.LaunchMode, fallback.ToString());
-            if (int.TryParse(raw, out int mode))
-            {
-                return mode == (int)GameLaunchMode.ViewBoard;
-            }
-
-            return false;
-        }
-
-        int v = PlayerPrefs.GetInt(PostGameKeys.LaunchMode, fallback);
-        return v == (int)GameLaunchMode.ViewBoard;
+        // Offline: GameModeBootstrap captured this before ForceLaunchModeNormal() cleared PlayerPrefs.
+        return GameModeBootstrap.EnteredAsViewBoard;
     }
 }
