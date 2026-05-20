@@ -59,6 +59,13 @@ public sealed class SinglePlayerStart : MonoBehaviour
             s.attacker.aiDifficulty = difficulty;
         }
 
+        if (GameSettingsManager.Instance == null)
+        {
+            Debug.LogError("[SinglePlayerStart] GameSettingsManager.Instance is null. " +
+                           "Make sure the Persistence scene is loaded.");
+            return;
+        }
+
         GameSettingsManager.Instance.Set(s);
 
         if (_sceneLoader != null)
