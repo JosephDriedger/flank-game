@@ -12,6 +12,10 @@ public sealed class SettingsPanelController : MonoBehaviour
     private const float DefaultSFXVolume   = 1f;
     private const bool  DefaultFullscreen  = true;
 
+    // Target windowed resolution — 16:9, matches ProjectSettings defaults.
+    private const int WindowedWidth  = 1920;
+    private const int WindowedHeight = 1080;
+
     [Header("Controls")]
     [SerializeField] private Slider musicVolumeSlider;
     [SerializeField] private Slider sfxVolumeSlider;
@@ -127,7 +131,16 @@ public sealed class SettingsPanelController : MonoBehaviour
 
     private static void ApplyFullscreen(bool value)
     {
-        Screen.fullScreen = value;
+        if (value)
+        {
+            Screen.fullScreenMode = FullScreenMode.FullScreenWindow;
+        }
+        else
+        {
+            // Always return to an explicit 16:9 windowed resolution so the
+            // window doesn't inherit the native ultrawide (or any other) size.
+            Screen.SetResolution(WindowedWidth, WindowedHeight, FullScreenMode.Windowed);
+        }
     }
 
     // ----------------------------------------------------------------
