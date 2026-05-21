@@ -246,8 +246,8 @@ MonoBehaviour:
     y: 0
     width: 453
     height: 962
-  m_MinSize: {x: 275, y: 50}
-  m_MaxSize: {x: 4000, y: 4000}
+  m_MinSize: {x: 276, y: 76}
+  m_MaxSize: {x: 4001, y: 4026}
   m_ActualView: {fileID: 18}
   m_Panes:
   - {fileID: 18}
@@ -302,8 +302,8 @@ MonoBehaviour:
     m_TextWithWhitespace: "UnityEditor.MainToolbarWindow\u200B"
   m_Pos:
     serializedVersion: 2
-    x: 1
-    y: 51
+    x: 0
+    y: 0
     width: 1718
     height: 36
   m_SerializedDataModeController:
@@ -606,8 +606,8 @@ MonoBehaviour:
     m_TextWithWhitespace: "Hierarchy\u200B"
   m_Pos:
     serializedVersion: 2
-    x: 1
-    y: 87
+    x: 0
+    y: 24
     width: 415
     height: 936
   m_SerializedDataModeController:
@@ -755,7 +755,7 @@ MonoBehaviour:
   m_Pos:
     serializedVersion: 2
     x: 417
-    y: 87
+    y: 24
     width: 847
     height: 936
   m_SerializedDataModeController:
@@ -1612,7 +1612,7 @@ MonoBehaviour:
   m_Pos:
     serializedVersion: 2
     x: 1266
-    y: 87
+    y: 24
     width: 452
     height: 936
   m_SerializedDataModeController:
@@ -1703,8 +1703,8 @@ MonoBehaviour:
     m_TextWithWhitespace: "Project\u200B"
   m_Pos:
     serializedVersion: 2
-    x: 1
-    y: 1049
+    x: 0
+    y: 986
     width: 1718
     height: 296
   m_SerializedDataModeController:
@@ -1755,14 +1755,9 @@ MonoBehaviour:
       m_Data: 55564
     m_ExpandedIDs:
     - m_Data: 0
-    - m_Data: 55458
-    - m_Data: 55460
-    - m_Data: 55462
-    - m_Data: 55562
-    - m_Data: 55574
-    - m_Data: 55644
-    - m_Data: 1000000000
-    - m_Data: 2147483647
+    - m_Data: 53152
+    - m_Data: 53154
+    - m_Data: 53156
     m_RenameOverlay:
       m_UserAcceptedRename: 0
       m_Name: 
@@ -1795,9 +1790,9 @@ MonoBehaviour:
       m_Data: 0
     m_ExpandedIDs:
     - m_Data: 0
-    - m_Data: 55458
-    - m_Data: 55460
-    - m_Data: 55462
+    - m_Data: 53152
+    - m_Data: 53154
+    - m_Data: 53156
     m_RenameOverlay:
       m_UserAcceptedRename: 0
       m_Name: 
