@@ -12,6 +12,7 @@ public sealed class LanLobbyPanelController : MonoBehaviour
     [SerializeField] private TMP_Text lobbyTitleText;
     [SerializeField] private TMP_Text ipAddressText;
     [SerializeField] private TMP_Text portText;
+    [SerializeField] private TMP_Text timeControlText;
 
     [Header("List")]
     [SerializeField] private Transform playerListContent;
@@ -20,6 +21,7 @@ public sealed class LanLobbyPanelController : MonoBehaviour
     [Header("Buttons")]
     [SerializeField] private Button backButton;
     [SerializeField] private Button readyButton;
+    [SerializeField] private Button switchSidesButton;
     [SerializeField] private Button startGameButton;
 
     [Header("Targets")]
@@ -94,6 +96,11 @@ public sealed class LanLobbyPanelController : MonoBehaviour
             readyButton.onClick.AddListener(this.HandleReady);
         }
 
+        if (switchSidesButton != null)
+        {
+            switchSidesButton.onClick.AddListener(this.HandleSwitchSides);
+        }
+
         if (startGameButton != null)
         {
             startGameButton.onClick.AddListener(this.HandleStartGame);
@@ -126,6 +133,11 @@ public sealed class LanLobbyPanelController : MonoBehaviour
         if (readyButton != null)
         {
             readyButton.onClick.RemoveListener(this.HandleReady);
+        }
+
+        if (switchSidesButton != null)
+        {
+            switchSidesButton.onClick.RemoveListener(this.HandleSwitchSides);
         }
 
         if (startGameButton != null)
@@ -169,6 +181,17 @@ public sealed class LanLobbyPanelController : MonoBehaviour
         {
             portText.text = $"Port - {portToShow}";
         }
+
+        if (timeControlText != null)
+        {
+            int minutes = LanLobbyState.Instance != null ? LanLobbyState.Instance.TimeLimitMinutes.Value : 0;
+            timeControlText.text = TimeLimitToDisplay(minutes);
+        }
+    }
+
+    private static string TimeLimitToDisplay(int minutes)
+    {
+        return minutes <= 0 ? "Time Limit - Unlimited" : $"Time Limit - {minutes} min";
     }
 
     private void HandleClientDisconnected(ulong clientId)
@@ -243,7 +266,6 @@ public sealed class LanLobbyPanelController : MonoBehaviour
             bool isLocal = p.ClientId == localId;
             bool isHostPlayer = NetworkManager.Singleton.IsServer && p.ClientId == NetworkManager.Singleton.LocalClientId;
 
-            bool canSwitch = isLocal && !p.IsReady;
             bool canKick = isHost && !isLocal;
 
             entry.Bind(
@@ -251,15 +273,7 @@ public sealed class LanLobbyPanelController : MonoBehaviour
                 isHostPlayer: isHostPlayer,
                 side: p.Side,
                 isReady: p.IsReady,
-                canSwitch: canSwitch,
                 canKick: canKick,
-                onSwitch: () =>
-                {
-                    if (LanLobbyState.Instance != null)
-                    {
-                        LanLobbyState.Instance.SwitchSideServerRpc();
-                    }
-                },
                 onKick: () =>
                 {
                     if (LanLobbyState.Instance != null)
@@ -283,10 +297,24 @@ public sealed class LanLobbyPanelController : MonoBehaviour
 
         bool isHost = NetworkManager.Singleton.IsHost;
 
+        if (switchSidesButton != null)
+        {
+            switchSidesButton.gameObject.SetActive(isHost);
+            switchSidesButton.interactable = isHost && !this.localReady;
+        }
+
         if (startGameButton != null)
         {
             startGameButton.gameObject.SetActive(isHost);
             startGameButton.interactable = isHost && LanLobbyState.Instance.AreAllPlayersReady();
+        }
+    }
+
+    private void HandleSwitchSides()
+    {
+        if (LanLobbyState.Instance != null)
+        {
+            LanLobbyState.Instance.SwitchSideServerRpc();
         }
     }
 

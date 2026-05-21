@@ -4,12 +4,24 @@ using TMPro;
 
 public class LanLobbyPanelStylist : PanelStylistBase
 {
+    // ── Lobby name (title) ────────────────────────────────────────────────────
+
+    [Header("Lobby Name Text")]
+    [SerializeField] private TextMeshProUGUI _lobbyNameText;
+    [SerializeField] private Color _lobbyNameColor    = Color.white;
+    [SerializeField] private float _lobbyNameFontSize = 64f;
+
+    [Header("Lobby Name Outline")]
+    [SerializeField] private bool  _lobbyNameOutlineEnabled = true;
+    [SerializeField] private Color _lobbyNameOutlineColor   = Color.black;
+    [SerializeField] [Range(0f, 0.5f)] private float _lobbyNameOutlineWidth = 0.28f;
+
     // ── Info texts ────────────────────────────────────────────────────────────
 
     [Header("Info Texts")]
-    [SerializeField] private TextMeshProUGUI _lobbyNameText;
     [SerializeField] private TextMeshProUGUI _ipAddressText;
     [SerializeField] private TextMeshProUGUI _portText;
+    [SerializeField] private TextMeshProUGUI _timeControlText;
 
     [Header("Info Text Style")]
     [SerializeField] private Color _infoTextColor    = Color.white;
@@ -44,6 +56,13 @@ public class LanLobbyPanelStylist : PanelStylistBase
     [SerializeField] private Color _readyHover   = new Color(0.15f, 0.65f, 0.15f, 1f);
     [SerializeField] private Color _readyPressed = new Color(0.07f, 0.40f, 0.07f, 1f);
 
+    [Header("Switch Sides Button")]
+    [SerializeField] private MainMenuButton _switchSidesButton;
+    [SerializeField] private Color _switchBorder  = new Color(0.90f, 0.55f, 0.05f, 1f);
+    [SerializeField] private Color _switchNormal  = new Color(0.78f, 0.42f, 0.02f, 1f);
+    [SerializeField] private Color _switchHover   = new Color(0.95f, 0.60f, 0.10f, 1f);
+    [SerializeField] private Color _switchPressed = new Color(0.60f, 0.30f, 0.01f, 1f);
+
     [Header("Start Button")]
     [SerializeField] private MainMenuButton _startButton;
     [SerializeField] private Color _startBorder  = new Color(0.30f, 0.50f, 0.90f, 1f);
@@ -55,24 +74,35 @@ public class LanLobbyPanelStylist : PanelStylistBase
 
     protected override void Apply()
     {
-        ApplyInfoText(_lobbyNameText);
+        ApplyLobbyName();
         ApplyInfoText(_ipAddressText);
         ApplyInfoText(_portText);
+        ApplyInfoText(_timeControlText);
         ApplyPlayerListPanel();
-        ApplyMainMenuButton(_exitButton,  _exitBorder,  _exitNormal,  _exitHover,  _exitPressed);
-        ApplyMainMenuButton(_readyButton, _readyBorder, _readyNormal, _readyHover, _readyPressed);
-        ApplyMainMenuButton(_startButton, _startBorder, _startNormal, _startHover, _startPressed);
+        ApplyMainMenuButton(_exitButton,        _exitBorder,   _exitNormal,   _exitHover,   _exitPressed);
+        ApplyMainMenuButton(_readyButton,       _readyBorder,  _readyNormal,  _readyHover,  _readyPressed);
+        ApplyMainMenuButton(_switchSidesButton, _switchBorder, _switchNormal, _switchHover, _switchPressed);
+        ApplyMainMenuButton(_startButton,       _startBorder,  _startNormal,  _startHover,  _startPressed);
     }
 
     // Start() ensures button colors win over MainMenuButton.Awake().
     private void Start()
     {
-        ApplyMainMenuButton(_exitButton,  _exitBorder,  _exitNormal,  _exitHover,  _exitPressed);
-        ApplyMainMenuButton(_readyButton, _readyBorder, _readyNormal, _readyHover, _readyPressed);
-        ApplyMainMenuButton(_startButton, _startBorder, _startNormal, _startHover, _startPressed);
+        ApplyMainMenuButton(_exitButton,        _exitBorder,   _exitNormal,   _exitHover,   _exitPressed);
+        ApplyMainMenuButton(_readyButton,       _readyBorder,  _readyNormal,  _readyHover,  _readyPressed);
+        ApplyMainMenuButton(_switchSidesButton, _switchBorder, _switchNormal, _switchHover, _switchPressed);
+        ApplyMainMenuButton(_startButton,       _startBorder,  _startNormal,  _startHover,  _startPressed);
     }
 
     // ── Internal ──────────────────────────────────────────────────────────────
+
+    private void ApplyLobbyName()
+    {
+        if (_lobbyNameText == null) return;
+        _lobbyNameText.color    = _lobbyNameColor;
+        _lobbyNameText.fontSize = _lobbyNameFontSize;
+        ApplyTMPOutline(_lobbyNameText, _lobbyNameOutlineEnabled, _lobbyNameOutlineColor, _lobbyNameOutlineWidth);
+    }
 
     private void ApplyInfoText(TextMeshProUGUI t)
     {

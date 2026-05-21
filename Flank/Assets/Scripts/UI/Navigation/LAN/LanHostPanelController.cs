@@ -85,18 +85,18 @@ public sealed class LanHostPanelController : MonoBehaviour
             return;
         }
 
-        bool started = LanNetworkService.Instance.StartHost(LanSessionConfig.HostPort);
-        if (!started)
-        {
-            return;
-        }
-
         if (GameSettingsManager.Instance != null)
         {
             GameSettings s = GameSettings.CreateDefault();
             s.mode = GameMode.Lan;
             s.timeLimit = ReadTimeLimit();
             GameSettingsManager.Instance.Set(s);
+        }
+
+        bool started = LanNetworkService.Instance.StartHost(LanSessionConfig.HostPort);
+        if (!started)
+        {
+            return;
         }
 
         // Ensure the UI reflects the actual host port we used.

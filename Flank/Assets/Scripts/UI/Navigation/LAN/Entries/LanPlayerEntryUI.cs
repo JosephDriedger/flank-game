@@ -16,7 +16,6 @@ public sealed class LanPlayerEntryUI : MonoBehaviour
     [SerializeField] private Sprite unassignedSprite;
 
     [Header("Buttons")]
-    [SerializeField] private Button switchSidesButton;
     [SerializeField] private Button kickPlayerButton;
 
     public void Bind(
@@ -24,9 +23,7 @@ public sealed class LanPlayerEntryUI : MonoBehaviour
         bool isHostPlayer,
         Role side,
         bool isReady,
-        bool canSwitch,
         bool canKick,
-        System.Action onSwitch,
         System.Action onKick)
     {
         if (nameText != null)
@@ -50,17 +47,6 @@ public sealed class LanPlayerEntryUI : MonoBehaviour
 
             // Optional: hide icon when unassigned if you prefer
             // pieceIcon.enabled = side != LobbySide.None;
-        }
-
-        if (switchSidesButton != null)
-        {
-            switchSidesButton.onClick.RemoveAllListeners();
-            switchSidesButton.interactable = canSwitch;
-
-            if (onSwitch != null)
-            {
-                switchSidesButton.onClick.AddListener(() => onSwitch.Invoke());
-            }
         }
 
         if (kickPlayerButton != null)

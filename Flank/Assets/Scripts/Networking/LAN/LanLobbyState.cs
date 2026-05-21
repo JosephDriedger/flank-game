@@ -17,6 +17,12 @@ public sealed class LanLobbyState : NetworkBehaviour
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Server);
 
+    public NetworkVariable<int> TimeLimitMinutes { get; } =
+        new NetworkVariable<int>(
+            0,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -39,6 +45,9 @@ public sealed class LanLobbyState : NetworkBehaviour
         RoomName.OnValueChanged -= HandleRoomNameChanged;
         RoomName.OnValueChanged += HandleRoomNameChanged;
 
+        TimeLimitMinutes.OnValueChanged -= HandleTimeLimitChanged;
+        TimeLimitMinutes.OnValueChanged += HandleTimeLimitChanged;
+
         if (IsServer)
         {
             NetworkManager.Singleton.OnClientConnectedCallback += HandleClientConnected;
@@ -46,6 +55,11 @@ public sealed class LanLobbyState : NetworkBehaviour
 
             RoomName.Value = new FixedString32Bytes(
                 string.IsNullOrWhiteSpace(LanSessionConfig.RoomName) ? "Room" : LanSessionConfig.RoomName);
+
+            int minutes = 0;
+            if (GameSettingsManager.Instance?.Current != null)
+                minutes = (int)GameSettingsManager.Instance.Current.timeLimit;
+            TimeLimitMinutes.Value = minutes;
 
             EnsureServerHasHostEntry();
         }
@@ -59,6 +73,7 @@ public sealed class LanLobbyState : NetworkBehaviour
 
         Players.OnListChanged -= HandlePlayersChanged;
         RoomName.OnValueChanged -= HandleRoomNameChanged;
+        TimeLimitMinutes.OnValueChanged -= HandleTimeLimitChanged;
 
         if (NetworkManager.Singleton != null && IsServer)
         {
@@ -70,6 +85,8 @@ public sealed class LanLobbyState : NetworkBehaviour
     private void HandlePlayersChanged(NetworkListEvent<LobbyPlayerData> changeEvent) => RaiseLobbyChanged();
 
     private void HandleRoomNameChanged(FixedString32Bytes prev, FixedString32Bytes next) => RaiseLobbyChanged();
+
+    private void HandleTimeLimitChanged(int prev, int next) => RaiseLobbyChanged();
 
     private void RaiseLobbyChanged()
     {
@@ -173,7 +190,10 @@ public sealed class LanLobbyState : NetworkBehaviour
                     : LanSessionConfig.JoinPlayerName
             );
 
-        Players.Add(new LobbyPlayerData(clientId, name, Role.Defender, false));
+        Role hostRole = Players.Count > 0 ? Players[0].Side : Role.Attacker;
+        Role clientRole = hostRole == Role.Attacker ? Role.Defender : Role.Attacker;
+
+        Players.Add(new LobbyPlayerData(clientId, name, clientRole, false));
     }
 
     private void HandleClientDisconnected(ulong clientId)
@@ -189,13 +209,6 @@ public sealed class LanLobbyState : NetworkBehaviour
         }
 
         Players.RemoveAt(idx);
-
-        if (Players.Count == 1)
-        {
-            LobbyPlayerData host = Players[0];
-            host.IsReady = false;
-            Players[0] = host;
-        }
     }
 
     private bool TryGetIndex(ulong clientId, out int index)
