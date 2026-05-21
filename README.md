@@ -45,6 +45,16 @@ Defaults to port `3000`. Set `PORT` env var to override. See [docs/matchmaking-s
 | [Networking](docs/networking.md) | LAN and online multiplayer setup |
 | [Matchmaking Server](docs/matchmaking-server.md) | REST API reference and deployment guide |
 
+## Building an Installer
+
+A Windows installer script using [Inno Setup 6](https://jrsoftware.org/isdl.php) is in [`installer/`](installer/).
+
+```cmd
+iscc installer\flank-setup.iss
+```
+
+Output: `installer\Output\FlankSetup-1.0.0.exe`. See [installer/README.md](installer/README.md) for details.
+
 ## Project Structure
 
 ```
@@ -56,6 +66,7 @@ flank-game/
 │       ├── Networking/         # LAN and online transport
 │       ├── Settings/           # Global config
 │       └── UI/                 # All UI panels and controllers
+├── installer/                  # Inno Setup installer script
 ├── matchmaking-server/         # Node.js room broker (zero dependencies)
 └── docs/                       # This documentation
 ```

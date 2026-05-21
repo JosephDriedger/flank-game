@@ -46,6 +46,7 @@ ServerData/
 *.csproj
 *.unityproj
 *.sln
+*.slnx
 *.suo
 *.tmp
 *.user
@@ -81,6 +82,13 @@ ServerData/
 # ============================================================
 
 *.log
+
+# ============================================================
+# INSTALLER
+# ============================================================
+
+# Compiled installer executables (built by Inno Setup, not source)
+installer/Output/
 
 # ============================================================
 # MATCHMAKING SERVER
