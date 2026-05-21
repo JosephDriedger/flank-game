@@ -47,13 +47,19 @@ Defaults to port `3000`. Set `PORT` env var to override. See [docs/matchmaking-s
 
 ## Building an Installer
 
-A Windows installer script using [Inno Setup 6](https://jrsoftware.org/isdl.php) is in [`installer/`](installer/).
+Installer scripts for both platforms live in [`installer/`](installer/). See [installer/README.md](installer/README.md) for full details.
 
+**Windows** — [Inno Setup 6](https://jrsoftware.org/isdl.php) required:
 ```cmd
 iscc installer\flank-setup.iss
 ```
+Output: `installer\Output\FlankSetup-1.0.0.exe`
 
-Output: `installer\Output\FlankSetup-1.0.0.exe`. See [installer/README.md](installer/README.md) for details.
+**macOS** — `create-dmg` recommended (`brew install create-dmg`), falls back to `hdiutil`:
+```bash
+cd installer && ./build-dmg.sh
+```
+Output: `installer/Output/FlankSetup-1.0.0.dmg`
 
 ## Project Structure
 
