@@ -9,9 +9,13 @@ public sealed class LanLobbyState : NetworkBehaviour
 
     public event Action OnLobbyChanged;
 
-    // FIX: Initialize inline so NGO never sees this as null.
-    // Also remove "private set" so it cannot be reassigned to null.
     public NetworkList<LobbyPlayerData> Players { get; } = new NetworkList<LobbyPlayerData>();
+
+    public NetworkVariable<FixedString32Bytes> RoomName { get; } =
+        new NetworkVariable<FixedString32Bytes>(
+            new FixedString32Bytes("Room"),
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
 
     private void Awake()
     {
@@ -32,10 +36,16 @@ public sealed class LanLobbyState : NetworkBehaviour
         Players.OnListChanged -= HandlePlayersChanged;
         Players.OnListChanged += HandlePlayersChanged;
 
+        RoomName.OnValueChanged -= HandleRoomNameChanged;
+        RoomName.OnValueChanged += HandleRoomNameChanged;
+
         if (IsServer)
         {
             NetworkManager.Singleton.OnClientConnectedCallback += HandleClientConnected;
             NetworkManager.Singleton.OnClientDisconnectCallback += HandleClientDisconnected;
+
+            RoomName.Value = new FixedString32Bytes(
+                string.IsNullOrWhiteSpace(LanSessionConfig.RoomName) ? "Room" : LanSessionConfig.RoomName);
 
             EnsureServerHasHostEntry();
         }
@@ -48,6 +58,7 @@ public sealed class LanLobbyState : NetworkBehaviour
         base.OnNetworkDespawn();
 
         Players.OnListChanged -= HandlePlayersChanged;
+        RoomName.OnValueChanged -= HandleRoomNameChanged;
 
         if (NetworkManager.Singleton != null && IsServer)
         {
@@ -56,10 +67,9 @@ public sealed class LanLobbyState : NetworkBehaviour
         }
     }
 
-    private void HandlePlayersChanged(NetworkListEvent<LobbyPlayerData> changeEvent)
-    {
-        RaiseLobbyChanged();
-    }
+    private void HandlePlayersChanged(NetworkListEvent<LobbyPlayerData> changeEvent) => RaiseLobbyChanged();
+
+    private void HandleRoomNameChanged(FixedString32Bytes prev, FixedString32Bytes next) => RaiseLobbyChanged();
 
     private void RaiseLobbyChanged()
     {
@@ -248,41 +258,33 @@ public sealed class LanLobbyState : NetworkBehaviour
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void SwitchSideServerRpc(RpcParams rpcParams = default)
     {
-        if (!IsServer)
-        {
-            return;
-        }
+        if (!IsServer) return;
 
         ulong sender = rpcParams.Receive.SenderClientId;
-        if (!TryGetIndex(sender, out int idx))
-        {
-            return;
-        }
-
-        if (Players.Count != 2)
-        {
-            return;
-        }
+        if (!TryGetIndex(sender, out int idx)) return;
 
         LobbyPlayerData me = Players[idx];
-        if (me.IsReady)
+        if (me.IsReady) return;
+
+        if (Players.Count == 1)
         {
+            me.Side = me.Side == Role.Attacker ? Role.Defender : Role.Attacker;
+            Players[idx] = me;
             return;
         }
+
+        if (Players.Count != 2) return;
 
         int otherIdx = idx == 0 ? 1 : 0;
         LobbyPlayerData other = Players[otherIdx];
 
-        if (other.IsReady)
-        {
-            return;
-        }
+        if (other.IsReady) return;
 
         Role tmp = me.Side;
-        me.Side = other.Side;
+        me.Side   = other.Side;
         other.Side = tmp;
 
-        Players[idx] = me;
+        Players[idx]      = me;
         Players[otherIdx] = other;
     }
 
