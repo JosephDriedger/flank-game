@@ -19,7 +19,7 @@ set -euo pipefail
 # ── Configuration ────────────────────────────────────────────────────────────
 APP_NAME="Flank"
 APP_VERSION="1.0.0"
-BUILD_DIR="../Flank/BuildMac"          # Unity macOS build output folder
+BUILD_DIR="${BUILD_DIR:-../Flank/BuildMac}"   # Unity macOS build output (override via env)
 APP_BUNDLE="${BUILD_DIR}/${APP_NAME}.app"
 OUTPUT_DIR="Output"
 DMG_NAME="${APP_NAME}Setup-${APP_VERSION}"

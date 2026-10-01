@@ -10,7 +10,9 @@
 #define AppName    "Flank"
 #define AppVersion "1.0.0"
 #define AppPublisher "Joseph Driedger"
-#define BuildDir   "..\Flank\Build"
+#ifndef BuildDir
+  #define BuildDir "..\Flank\Build"
+#endif
 #define ExeName    "Flank.exe"
 
 [Setup]
@@ -55,7 +57,7 @@ Source: "{#BuildDir}\UnityPlayer.dll";     DestDir: "{app}"; Flags: ignoreversio
 Source: "{#BuildDir}\UnityCrashHandler64.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 ; --- D3D12 runtime ---
-Source: "{#BuildDir}\D3D12\*";             DestDir: "{app}\D3D12"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#BuildDir}\D3D12\*";             DestDir: "{app}\D3D12"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 ; --- Game data ---
 Source: "{#BuildDir}\Flank_Data\*";        DestDir: "{app}\Flank_Data"; Flags: ignoreversion recursesubdirs createallsubdirs

@@ -1,0 +1,112 @@
+name: Build & Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+env:
+  APP_VERSION: 1.0.0
+  UNITY_VERSION: 6000.3.14f1
+
+jobs:
+  build-unity:
+    name: Unity build (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [StandaloneWindows64, StandaloneOSX]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: Flank/Library
+          key: Library-${{ matrix.target }}-${{ hashFiles('Flank/Packages/packages-lock.json', 'Flank/ProjectSettings/ProjectVersion.txt') }}
+          restore-keys: Library-${{ matrix.target }}-
+
+      - uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: Flank
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: ${{ matrix.target }}
+          buildName: Flank
+          versioning: None
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unity-${{ matrix.target }}
+          path: Flank/build/${{ matrix.target }}
+          if-no-files-found: error
+
+  package-windows:
+    name: Windows installer
+    needs: build-unity
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: unity-StandaloneWindows64
+          path: Flank/Build
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+      - name: Compile installer
+        shell: cmd
+        run: '"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DBuildDir="..\Flank\Build" installer\flank-setup.iss'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FlankSetup-windows
+          path: installer/Output/FlankSetup-${{ env.APP_VERSION }}.exe
+          if-no-files-found: error
+
+  package-macos:
+    name: macOS DMG
+    needs: build-unity
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: unity-StandaloneOSX
+          path: Flank/BuildMac
+      - name: Build DMG
+        working-directory: installer
+        run: |
+          # Artifact upload drops file modes; restore executable bits in the .app
+          chmod -R +x ../Flank/BuildMac/Flank.app/Contents/MacOS
+          # Unsigned build: strip quarantine so it launches after extraction
+          xattr -cr ../Flank/BuildMac/Flank.app || true
+          # Ad-hoc sign so Apple Silicon will run it (right-click > Open on first launch)
+          codesign --force --deep --sign - ../Flank/BuildMac/Flank.app || true
+          brew install create-dmg || true
+          chmod +x build-dmg.sh
+          ./build-dmg.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FlankSetup-macos
+          path: installer/Output/FlankSetup-${{ env.APP_VERSION }}.dmg
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    needs: [package-windows, package-macos]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: FlankSetup-*
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Flank ${{ env.APP_VERSION }}
+          files: dist/*
