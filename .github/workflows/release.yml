@@ -135,5 +135,5 @@ jobs:
           chmod +x butler/butler
       - name: Push builds
         run: |
-          butler/butler push itch/windows "$ITCH_TARGET:windows" --userversion "$APP_VERSION"
+          butler/butler push itch/windows/FlankSetup-${APP_VERSION}.exe "$ITCH_TARGET:windows" --userversion "$APP_VERSION"
           butler/butler push itch/mac/FlankSetup-${APP_VERSION}.dmg "$ITCH_TARGET:mac" --userversion "$APP_VERSION"
