@@ -92,13 +92,6 @@ jobs:
           name: FlankSetup-macos
           path: installer/Output/FlankSetup-${{ env.APP_VERSION }}.dmg
           if-no-files-found: error
-      - name: Zip app for itch.io
-        run: ditto -c -k --keepParent Flank/BuildMac/Flank.app Flank-mac.zip
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Flank-macos-zip
-          path: Flank-mac.zip
-          if-no-files-found: error
 
   release:
     name: Publish GitHub release
@@ -129,11 +122,11 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: unity-StandaloneWindows64
+          name: FlankSetup-windows
           path: itch/windows
       - uses: actions/download-artifact@v4
         with:
-          name: Flank-macos-zip
+          name: FlankSetup-macos
           path: itch/mac
       - name: Install butler
         run: |
@@ -143,4 +136,4 @@ jobs:
       - name: Push builds
         run: |
           butler/butler push itch/windows "$ITCH_TARGET:windows" --userversion "$APP_VERSION"
-          butler/butler push itch/mac/Flank-mac.zip "$ITCH_TARGET:mac" --userversion "$APP_VERSION"
+          butler/butler push itch/mac/FlankSetup-${APP_VERSION}.dmg "$ITCH_TARGET:mac" --userversion "$APP_VERSION"
